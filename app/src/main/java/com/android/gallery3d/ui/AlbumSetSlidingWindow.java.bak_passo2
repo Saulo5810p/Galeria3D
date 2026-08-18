@@ -17,7 +17,6 @@
 package com.android.gallery3d.ui;
 
 import android.graphics.Bitmap;
-import android.graphics.BitmapFactory;
 import android.os.Message;
 
 import com.android.gallery3d.R;
@@ -47,7 +46,6 @@ public class AlbumSetSlidingWindow implements AlbumSetDataLoader.DataListener {
     }
 
     private final AlbumSetDataLoader mSource;
-    private final AbstractGalleryActivity mActivity;
     private int mSize;
 
     private int mContentStart = 0;
@@ -96,7 +94,6 @@ public class AlbumSetSlidingWindow implements AlbumSetDataLoader.DataListener {
     public AlbumSetSlidingWindow(AbstractGalleryActivity activity,
             AlbumSetDataLoader source, AlbumSetSlotRenderer.LabelSpec labelSpec, int cacheSize) {
         source.setModelListener(this);
-        mActivity = activity;
         mSource = source;
         mData = new AlbumSetEntry[cacheSize];
         mSize = source.size();
@@ -118,22 +115,6 @@ public class AlbumSetSlidingWindow implements AlbumSetDataLoader.DataListener {
 
     public void setListener(Listener listener) {
         mListener = listener;
-    }
-
-    // Passo 2: capa generica de fallback para faixas/albuns sem capa
-    // (LocalAudio retorna null de proposito nesse caso - ver comentario
-    // em LocalAudio.LocalAudioRequest.onDecodeOriginal). Decodificada uma
-    // vez e reaproveitada: TiledTexture nunca recicla o Bitmap de origem
-    // que recebe, entao compartilhar essa mesma instancia entre varios
-    // slots e seguro.
-    private Bitmap mPlaceholderCoverBitmap;
-    private Bitmap getPlaceholderCoverBitmap() {
-        if (mPlaceholderCoverBitmap == null) {
-            mPlaceholderCoverBitmap = BitmapFactory.decodeResource(
-                    mActivity.getAndroidContext().getResources(),
-                    R.drawable.ic_audio_cover_placeholder);
-        }
-        return mPlaceholderCoverBitmap;
     }
 
     public AlbumSetEntry get(int slotIndex) {
@@ -459,12 +440,7 @@ public class AlbumSetSlidingWindow implements AlbumSetDataLoader.DataListener {
         @Override
         public void updateEntry() {
             Bitmap bitmap = getBitmap();
-            if (bitmap == null) {
-                // Passo 2: sem capa real, usa a generica em vez de deixar
-                // o slot cinza pra sempre.
-                bitmap = getPlaceholderCoverBitmap();
-                if (bitmap == null) return; // recurso do placeholder ausente/corrompido
-            }
+            if (bitmap == null) return; // error or recycled
 
             AlbumSetEntry entry = mData[mSlotIndex % mData.length];
             TiledTexture texture = new TiledTexture(bitmap);

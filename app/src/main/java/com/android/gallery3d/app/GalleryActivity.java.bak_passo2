@@ -166,11 +166,8 @@ public final class GalleryActivity extends AbstractGalleryActivity implements On
     public void startDefaultPage() {
         PicasaSource.showSignInReminder(this);
         Bundle data = new Bundle();
-        // Passo 2: a tela inicial agora abre direto em /local/audio
-        // (INCLUDE_LOCAL_VIDEO_ONLY ja aponta pra la desde o Passo 1),
-        // em vez do combo de todas as midias + Picasa.
         data.putString(AlbumSetPage.KEY_MEDIA_PATH,
-                getDataManager().getTopSetPath(DataManager.INCLUDE_LOCAL_VIDEO_ONLY));
+                getDataManager().getTopSetPath(DataManager.INCLUDE_ALL));
         getStateManager().startState(AlbumSetPage.class, data);
         mVersionCheckDialog = PicasaSource.getVersionCheckDialog(this);
         if (mVersionCheckDialog != null) {

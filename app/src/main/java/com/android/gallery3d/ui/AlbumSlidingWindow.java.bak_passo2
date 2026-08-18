@@ -17,10 +17,8 @@
 package com.android.gallery3d.ui;
 
 import android.graphics.Bitmap;
-import android.graphics.BitmapFactory;
 import android.os.Message;
 
-import com.android.gallery3d.R;
 import com.android.gallery3d.app.AbstractGalleryActivity;
 import com.android.gallery3d.app.AlbumDataLoader;
 import com.android.gallery3d.common.Utils;
@@ -64,7 +62,6 @@ public class AlbumSlidingWindow implements AlbumDataLoader.DataListener {
     private final SynchronizedHandler mHandler;
     private final JobLimiter mThreadPool;
     private final TiledTexture.Uploader mTileUploader;
-    private final AbstractGalleryActivity mActivity;
 
     private int mSize;
 
@@ -94,7 +91,6 @@ public class AlbumSlidingWindow implements AlbumDataLoader.DataListener {
     public AlbumSlidingWindow(AbstractGalleryActivity activity,
             AlbumDataLoader source, int cacheSize) {
         source.setDataListener(this);
-        mActivity = activity;
         mSource = source;
         mData = new AlbumEntry[cacheSize];
         mSize = source.size();
@@ -109,19 +105,6 @@ public class AlbumSlidingWindow implements AlbumDataLoader.DataListener {
 
         mThreadPool = new JobLimiter(activity.getThreadPool(), JOB_LIMIT);
         mTileUploader = new TiledTexture.Uploader(activity.getGLRoot());
-    }
-
-    // Passo 2: capa generica de fallback para faixas sem capa. Decodificada
-    // uma vez e reaproveitada entre slots (TiledTexture nunca recicla o
-    // Bitmap de origem que recebe, entao isso e seguro).
-    private Bitmap mPlaceholderCoverBitmap;
-    private Bitmap getPlaceholderCoverBitmap() {
-        if (mPlaceholderCoverBitmap == null) {
-            mPlaceholderCoverBitmap = BitmapFactory.decodeResource(
-                    mActivity.getAndroidContext().getResources(),
-                    R.drawable.ic_audio_cover_placeholder);
-        }
-        return mPlaceholderCoverBitmap;
     }
 
     public void setListener(Listener listener) {
@@ -324,12 +307,7 @@ public class AlbumSlidingWindow implements AlbumDataLoader.DataListener {
 
         public void updateEntry() {
             Bitmap bitmap = getBitmap();
-            if (bitmap == null) {
-                // Passo 2: sem capa real, usa a generica em vez de deixar
-                // o slot cinza pra sempre.
-                bitmap = getPlaceholderCoverBitmap();
-                if (bitmap == null) return; // recurso do placeholder ausente/corrompido
-            }
+            if (bitmap == null) return; // error or recycled
             AlbumEntry entry = mData[mSlotIndex % mData.length];
             entry.bitmapTexture = new TiledTexture(bitmap);
             entry.content = entry.bitmapTexture;
