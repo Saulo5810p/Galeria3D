@@ -1,0 +1,245 @@
+Warning: Unable to set daemon's environment variables to match the client because: 
+  There is no native integration with this operating environment.
+  If the daemon was started with a significantly different environment from the client, and your build 
+  relies on environment variables, you may experience unexpected behavior.
+
+> Configure project :app
+WARNING: The option setting 'android.aapt2FromMavenOverride=/data/data/com.termux/files/usr/bin/aapt2' is experimental.
+
+> Task :app:dependencies
+
+------------------------------------------------------------
+Project ':app'
+------------------------------------------------------------
+
+debugCompileClasspath - Resolved configuration for compilation for variant: debug
++--- androidx.core:core:1.13.1
+|    +--- androidx.annotation:annotation:1.6.0
+|    |    \--- androidx.annotation:annotation-jvm:1.6.0
+|    |         \--- org.jetbrains.kotlin:kotlin-stdlib:1.8.0 -> 1.8.22
+|    |              +--- org.jetbrains.kotlin:kotlin-stdlib-common:1.8.22
+|    |              \--- org.jetbrains:annotations:13.0
+|    +--- androidx.annotation:annotation-experimental:1.4.0
+|    |    \--- org.jetbrains.kotlin:kotlin-stdlib:1.7.10 -> 1.8.22 (*)
+|    +--- androidx.lifecycle:lifecycle-runtime:2.6.2
+|    |    +--- androidx.annotation:annotation:1.1.0 -> 1.6.0 (*)
+|    |    +--- androidx.arch.core:core-common:2.2.0
+|    |    |    \--- androidx.annotation:annotation:1.1.0 -> 1.6.0 (*)
+|    |    +--- androidx.lifecycle:lifecycle-common:2.6.2
+|    |    |    +--- androidx.annotation:annotation:1.1.0 -> 1.6.0 (*)
+|    |    |    +--- org.jetbrains.kotlin:kotlin-stdlib:1.8.10 -> 1.8.22 (*)
+|    |    |    +--- org.jetbrains.kotlinx:kotlinx-coroutines-android:1.6.4
+|    |    |    |    +--- org.jetbrains.kotlinx:kotlinx-coroutines-core:1.6.4
+|    |    |    |    |    \--- org.jetbrains.kotlinx:kotlinx-coroutines-core-jvm:1.6.4
+|    |    |    |    |         +--- org.jetbrains.kotlinx:kotlinx-coroutines-bom:1.6.4
+|    |    |    |    |         |    +--- org.jetbrains.kotlinx:kotlinx-coroutines-android:1.6.4 (c)
+|    |    |    |    |         |    +--- org.jetbrains.kotlinx:kotlinx-coroutines-core-jvm:1.6.4 (c)
+|    |    |    |    |         |    \--- org.jetbrains.kotlinx:kotlinx-coroutines-core:1.6.4 (c)
+|    |    |    |    |         +--- org.jetbrains.kotlin:kotlin-stdlib-jdk8:1.6.21
+|    |    |    |    |         |    +--- org.jetbrains.kotlin:kotlin-stdlib:1.6.21 -> 1.8.22 (*)
+|    |    |    |    |         |    \--- org.jetbrains.kotlin:kotlin-stdlib-jdk7:1.6.21
+|    |    |    |    |         |         \--- org.jetbrains.kotlin:kotlin-stdlib:1.6.21 -> 1.8.22 (*)
+|    |    |    |    |         \--- org.jetbrains.kotlin:kotlin-stdlib-common:1.6.21 -> 1.8.22
+|    |    |    |    +--- org.jetbrains.kotlinx:kotlinx-coroutines-bom:1.6.4 (*)
+|    |    |    |    \--- org.jetbrains.kotlin:kotlin-stdlib-jdk8:1.6.21 (*)
+|    |    |    +--- androidx.lifecycle:lifecycle-livedata:2.6.2 (c)
+|    |    |    +--- androidx.lifecycle:lifecycle-livedata-core:2.6.2 (c)
+|    |    |    +--- androidx.lifecycle:lifecycle-runtime:2.6.2 (c)
+|    |    |    +--- androidx.lifecycle:lifecycle-viewmodel:2.6.2 (c)
+|    |    |    \--- androidx.lifecycle:lifecycle-viewmodel-savedstate:2.6.2 (c)
+|    |    +--- org.jetbrains.kotlin:kotlin-stdlib:1.8.10 -> 1.8.22 (*)
+|    |    +--- androidx.lifecycle:lifecycle-common:2.6.2 (c)
+|    |    +--- androidx.lifecycle:lifecycle-livedata-core:2.6.2 (c)
+|    |    +--- androidx.lifecycle:lifecycle-viewmodel:2.6.2 (c)
+|    |    +--- androidx.lifecycle:lifecycle-viewmodel-savedstate:2.6.2 (c)
+|    |    \--- androidx.lifecycle:lifecycle-livedata:2.6.2 (c)
+|    +--- androidx.versionedparcelable:versionedparcelable:1.1.1
+|    |    +--- androidx.annotation:annotation:1.1.0 -> 1.6.0 (*)
+|    |    \--- androidx.collection:collection:1.0.0 -> 1.1.0
+|    |         \--- androidx.annotation:annotation:1.1.0 -> 1.6.0 (*)
+|    \--- org.jetbrains.kotlin:kotlin-stdlib:1.8.22 (*)
++--- androidx.fragment:fragment:1.8.2
+|    +--- androidx.activity:activity:1.8.1
+|    |    +--- androidx.annotation:annotation:1.1.0 -> 1.6.0 (*)
+|    |    +--- androidx.core:core:1.8.0 -> 1.13.1 (*)
+|    |    +--- androidx.lifecycle:lifecycle-runtime:2.6.1 -> 2.6.2 (*)
+|    |    +--- androidx.lifecycle:lifecycle-viewmodel:2.6.1 -> 2.6.2
+|    |    |    +--- androidx.annotation:annotation:1.1.0 -> 1.6.0 (*)
+|    |    |    +--- org.jetbrains.kotlin:kotlin-stdlib:1.8.10 -> 1.8.22 (*)
+|    |    |    +--- androidx.lifecycle:lifecycle-common:2.6.2 (c)
+|    |    |    +--- androidx.lifecycle:lifecycle-livedata-core:2.6.2 (c)
+|    |    |    +--- androidx.lifecycle:lifecycle-runtime:2.6.2 (c)
+|    |    |    +--- androidx.lifecycle:lifecycle-viewmodel-savedstate:2.6.2 (c)
+|    |    |    \--- androidx.lifecycle:lifecycle-livedata:2.6.2 (c)
+|    |    +--- androidx.lifecycle:lifecycle-viewmodel-savedstate:2.6.1 -> 2.6.2
+|    |    |    +--- androidx.annotation:annotation:1.0.0 -> 1.6.0 (*)
+|    |    |    +--- androidx.core:core-ktx:1.2.0 -> 1.13.1
+|    |    |    |    +--- androidx.annotation:annotation:1.1.0 -> 1.6.0 (*)
+|    |    |    |    +--- androidx.core:core:1.13.1 (*)
+|    |    |    |    \--- org.jetbrains.kotlin:kotlin-stdlib:1.8.22 (*)
+|    |    |    +--- androidx.lifecycle:lifecycle-livedata-core:2.6.2
+|    |    |    |    +--- androidx.lifecycle:lifecycle-common:2.6.2 (*)
+|    |    |    |    +--- org.jetbrains.kotlin:kotlin-stdlib:1.8.10 -> 1.8.22 (*)
+|    |    |    |    +--- androidx.lifecycle:lifecycle-common:2.6.2 (c)
+|    |    |    |    +--- androidx.lifecycle:lifecycle-runtime:2.6.2 (c)
+|    |    |    |    +--- androidx.lifecycle:lifecycle-viewmodel:2.6.2 (c)
+|    |    |    |    +--- androidx.lifecycle:lifecycle-viewmodel-savedstate:2.6.2 (c)
+|    |    |    |    \--- androidx.lifecycle:lifecycle-livedata:2.6.2 (c)
+|    |    |    +--- androidx.lifecycle:lifecycle-viewmodel:2.6.2 (*)
+|    |    |    +--- androidx.savedstate:savedstate:1.2.1
+|    |    |    |    +--- androidx.annotation:annotation:1.1.0 -> 1.6.0 (*)
+|    |    |    |    \--- org.jetbrains.kotlin:kotlin-stdlib:1.8.10 -> 1.8.22 (*)
+|    |    |    +--- org.jetbrains.kotlin:kotlin-stdlib:1.8.10 -> 1.8.22 (*)
+|    |    |    +--- org.jetbrains.kotlinx:kotlinx-coroutines-android:1.6.4 (*)
+|    |    |    +--- androidx.lifecycle:lifecycle-common:2.6.2 (c)
+|    |    |    +--- androidx.lifecycle:lifecycle-livedata-core:2.6.2 (c)
+|    |    |    +--- androidx.lifecycle:lifecycle-runtime:2.6.2 (c)
+|    |    |    +--- androidx.lifecycle:lifecycle-viewmodel:2.6.2 (c)
+|    |    |    \--- androidx.lifecycle:lifecycle-livedata:2.6.2 (c)
+|    |    +--- androidx.savedstate:savedstate:1.2.1 (*)
+|    |    \--- org.jetbrains.kotlin:kotlin-stdlib:1.8.22 (*)
+|    +--- androidx.annotation:annotation:1.1.0 -> 1.6.0 (*)
+|    +--- androidx.annotation:annotation-experimental:1.4.0 (*)
+|    +--- androidx.collection:collection:1.1.0 (*)
+|    +--- androidx.core:core-ktx:1.2.0 -> 1.13.1 (*)
+|    +--- androidx.lifecycle:lifecycle-livedata-core:2.6.1 -> 2.6.2 (*)
+|    +--- androidx.lifecycle:lifecycle-runtime:2.6.1 -> 2.6.2 (*)
+|    +--- androidx.lifecycle:lifecycle-viewmodel:2.6.1 -> 2.6.2 (*)
+|    +--- androidx.lifecycle:lifecycle-viewmodel-savedstate:2.6.1 -> 2.6.2 (*)
+|    +--- androidx.loader:loader:1.0.0
+|    |    +--- androidx.annotation:annotation:1.0.0 -> 1.6.0 (*)
+|    |    +--- androidx.core:core:1.0.0 -> 1.13.1 (*)
+|    |    +--- androidx.lifecycle:lifecycle-livedata:2.0.0 -> 2.6.2
+|    |    |    +--- androidx.arch.core:core-runtime:2.1.0 -> 2.2.0
+|    |    |    |    +--- androidx.annotation:annotation:1.1.0 -> 1.6.0 (*)
+|    |    |    |    \--- androidx.arch.core:core-common:2.2.0 (*)
+|    |    |    +--- androidx.lifecycle:lifecycle-livedata-core:2.6.2 (*)
+|    |    |    +--- org.jetbrains.kotlin:kotlin-stdlib:1.8.10 -> 1.8.22 (*)
+|    |    |    +--- androidx.lifecycle:lifecycle-common:2.6.2 (c)
+|    |    |    +--- androidx.lifecycle:lifecycle-livedata-core:2.6.2 (c)
+|    |    |    +--- androidx.lifecycle:lifecycle-runtime:2.6.2 (c)
+|    |    |    +--- androidx.lifecycle:lifecycle-viewmodel:2.6.2 (c)
+|    |    |    \--- androidx.lifecycle:lifecycle-viewmodel-savedstate:2.6.2 (c)
+|    |    \--- androidx.lifecycle:lifecycle-viewmodel:2.0.0 -> 2.6.2 (*)
+|    +--- androidx.savedstate:savedstate:1.2.1 (*)
+|    +--- androidx.viewpager:viewpager:1.0.0
+|    |    +--- androidx.annotation:annotation:1.0.0 -> 1.6.0 (*)
+|    |    +--- androidx.core:core:1.0.0 -> 1.13.1 (*)
+|    |    \--- androidx.customview:customview:1.0.0
+|    |         +--- androidx.annotation:annotation:1.0.0 -> 1.6.0 (*)
+|    |         \--- androidx.core:core:1.0.0 -> 1.13.1 (*)
+|    \--- org.jetbrains.kotlin:kotlin-stdlib:1.8.22 (*)
++--- androidx.legacy:legacy-support-v13:1.0.0
+|    \--- androidx.legacy:legacy-support-v4:1.0.0
+|         +--- androidx.core:core:1.0.0 -> 1.13.1 (*)
+|         +--- androidx.media:media:1.0.0
+|         |    +--- androidx.annotation:annotation:1.0.0 -> 1.6.0 (*)
+|         |    +--- androidx.core:core:1.0.0 -> 1.13.1 (*)
+|         |    \--- androidx.versionedparcelable:versionedparcelable:1.0.0 -> 1.1.1 (*)
+|         +--- androidx.legacy:legacy-support-core-utils:1.0.0
+|         |    +--- androidx.annotation:annotation:1.0.0 -> 1.6.0 (*)
+|         |    +--- androidx.core:core:1.0.0 -> 1.13.1 (*)
+|         |    +--- androidx.documentfile:documentfile:1.0.0
+|         |    |    \--- androidx.annotation:annotation:1.0.0 -> 1.6.0 (*)
+|         |    +--- androidx.loader:loader:1.0.0 (*)
+|         |    +--- androidx.localbroadcastmanager:localbroadcastmanager:1.0.0
+|         |    |    \--- androidx.annotation:annotation:1.0.0 -> 1.6.0 (*)
+|         |    \--- androidx.print:print:1.0.0
+|         |         \--- androidx.annotation:annotation:1.0.0 -> 1.6.0 (*)
+|         +--- androidx.legacy:legacy-support-core-ui:1.0.0
+|         |    +--- androidx.annotation:annotation:1.0.0 -> 1.6.0 (*)
+|         |    +--- androidx.core:core:1.0.0 -> 1.13.1 (*)
+|         |    +--- androidx.legacy:legacy-support-core-utils:1.0.0 (*)
+|         |    +--- androidx.customview:customview:1.0.0 (*)
+|         |    +--- androidx.viewpager:viewpager:1.0.0 (*)
+|         |    +--- androidx.coordinatorlayout:coordinatorlayout:1.0.0
+|         |    |    +--- androidx.annotation:annotation:1.0.0 -> 1.6.0 (*)
+|         |    |    +--- androidx.core:core:1.0.0 -> 1.13.1 (*)
+|         |    |    \--- androidx.customview:customview:1.0.0 (*)
+|         |    +--- androidx.drawerlayout:drawerlayout:1.0.0
+|         |    |    +--- androidx.annotation:annotation:1.0.0 -> 1.6.0 (*)
+|         |    |    +--- androidx.core:core:1.0.0 -> 1.13.1 (*)
+|         |    |    \--- androidx.customview:customview:1.0.0 (*)
+|         |    +--- androidx.slidingpanelayout:slidingpanelayout:1.0.0
+|         |    |    +--- androidx.annotation:annotation:1.0.0 -> 1.6.0 (*)
+|         |    |    +--- androidx.core:core:1.0.0 -> 1.13.1 (*)
+|         |    |    \--- androidx.customview:customview:1.0.0 (*)
+|         |    +--- androidx.interpolator:interpolator:1.0.0
+|         |    |    \--- androidx.annotation:annotation:1.0.0 -> 1.6.0 (*)
+|         |    +--- androidx.swiperefreshlayout:swiperefreshlayout:1.0.0
+|         |    |    +--- androidx.annotation:annotation:1.0.0 -> 1.6.0 (*)
+|         |    |    +--- androidx.core:core:1.0.0 -> 1.13.1 (*)
+|         |    |    \--- androidx.interpolator:interpolator:1.0.0 (*)
+|         |    +--- androidx.asynclayoutinflater:asynclayoutinflater:1.0.0
+|         |    |    +--- androidx.annotation:annotation:1.0.0 -> 1.6.0 (*)
+|         |    |    \--- androidx.core:core:1.0.0 -> 1.13.1 (*)
+|         |    \--- androidx.cursoradapter:cursoradapter:1.0.0
+|         |         \--- androidx.annotation:annotation:1.0.0 -> 1.6.0 (*)
+|         \--- androidx.fragment:fragment:1.0.0 -> 1.8.2 (*)
++--- androidx.legacy:legacy-support-core-ui:1.0.0 (*)
++--- com.googlecode.mp4parser:isoparser:1.1.22
++--- com.adobe.xmp:xmpcore:6.1.11
++--- androidx.legacy:legacy-support-v13:{strictly 1.0.0} -> 1.0.0 (c)
++--- androidx.legacy:legacy-support-core-ui:{strictly 1.0.0} -> 1.0.0 (c)
++--- androidx.fragment:fragment:{strictly 1.8.2} -> 1.8.2 (c)
++--- androidx.core:core:{strictly 1.13.1} -> 1.13.1 (c)
++--- com.googlecode.mp4parser:isoparser:{strictly 1.1.22} -> 1.1.22 (c)
++--- com.adobe.xmp:xmpcore:{strictly 6.1.11} -> 6.1.11 (c)
++--- androidx.annotation:annotation:{strictly 1.6.0} -> 1.6.0 (c)
++--- androidx.annotation:annotation-experimental:{strictly 1.4.0} -> 1.4.0 (c)
++--- androidx.lifecycle:lifecycle-runtime:{strictly 2.6.2} -> 2.6.2 (c)
++--- androidx.versionedparcelable:versionedparcelable:{strictly 1.1.1} -> 1.1.1 (c)
++--- org.jetbrains.kotlin:kotlin-stdlib:{strictly 1.8.22} -> 1.8.22 (c)
++--- androidx.activity:activity:{strictly 1.8.1} -> 1.8.1 (c)
++--- androidx.collection:collection:{strictly 1.1.0} -> 1.1.0 (c)
++--- androidx.core:core-ktx:{strictly 1.13.1} -> 1.13.1 (c)
++--- androidx.lifecycle:lifecycle-livedata-core:{strictly 2.6.2} -> 2.6.2 (c)
++--- androidx.lifecycle:lifecycle-viewmodel:{strictly 2.6.2} -> 2.6.2 (c)
++--- androidx.lifecycle:lifecycle-viewmodel-savedstate:{strictly 2.6.2} -> 2.6.2 (c)
++--- androidx.loader:loader:{strictly 1.0.0} -> 1.0.0 (c)
++--- androidx.savedstate:savedstate:{strictly 1.2.1} -> 1.2.1 (c)
++--- androidx.viewpager:viewpager:{strictly 1.0.0} -> 1.0.0 (c)
++--- androidx.legacy:legacy-support-v4:{strictly 1.0.0} -> 1.0.0 (c)
++--- androidx.legacy:legacy-support-core-utils:{strictly 1.0.0} -> 1.0.0 (c)
++--- androidx.customview:customview:{strictly 1.0.0} -> 1.0.0 (c)
++--- androidx.coordinatorlayout:coordinatorlayout:{strictly 1.0.0} -> 1.0.0 (c)
++--- androidx.drawerlayout:drawerlayout:{strictly 1.0.0} -> 1.0.0 (c)
++--- androidx.slidingpanelayout:slidingpanelayout:{strictly 1.0.0} -> 1.0.0 (c)
++--- androidx.interpolator:interpolator:{strictly 1.0.0} -> 1.0.0 (c)
++--- androidx.swiperefreshlayout:swiperefreshlayout:{strictly 1.0.0} -> 1.0.0 (c)
++--- androidx.asynclayoutinflater:asynclayoutinflater:{strictly 1.0.0} -> 1.0.0 (c)
++--- androidx.cursoradapter:cursoradapter:{strictly 1.0.0} -> 1.0.0 (c)
++--- androidx.annotation:annotation-jvm:{strictly 1.6.0} -> 1.6.0 (c)
++--- androidx.arch.core:core-common:{strictly 2.2.0} -> 2.2.0 (c)
++--- androidx.lifecycle:lifecycle-common:{strictly 2.6.2} -> 2.6.2 (c)
++--- org.jetbrains.kotlin:kotlin-stdlib-common:{strictly 1.8.22} -> 1.8.22 (c)
++--- org.jetbrains:annotations:{strictly 13.0} -> 13.0 (c)
++--- org.jetbrains.kotlinx:kotlinx-coroutines-android:{strictly 1.6.4} -> 1.6.4 (c)
++--- androidx.lifecycle:lifecycle-livedata:{strictly 2.6.2} -> 2.6.2 (c)
++--- androidx.media:media:{strictly 1.0.0} -> 1.0.0 (c)
++--- androidx.documentfile:documentfile:{strictly 1.0.0} -> 1.0.0 (c)
++--- androidx.localbroadcastmanager:localbroadcastmanager:{strictly 1.0.0} -> 1.0.0 (c)
++--- androidx.print:print:{strictly 1.0.0} -> 1.0.0 (c)
++--- org.jetbrains.kotlinx:kotlinx-coroutines-core:{strictly 1.6.4} -> 1.6.4 (c)
++--- org.jetbrains.kotlinx:kotlinx-coroutines-bom:{strictly 1.6.4} -> 1.6.4 (c)
++--- org.jetbrains.kotlin:kotlin-stdlib-jdk8:{strictly 1.6.21} -> 1.6.21 (c)
++--- androidx.arch.core:core-runtime:{strictly 2.2.0} -> 2.2.0 (c)
++--- org.jetbrains.kotlinx:kotlinx-coroutines-core-jvm:{strictly 1.6.4} -> 1.6.4 (c)
+\--- org.jetbrains.kotlin:kotlin-stdlib-jdk7:{strictly 1.6.21} -> 1.6.21 (c)
+
+(c) - A dependency constraint, not a dependency. The dependency affected by the constraint occurs elsewhere in the tree.
+(*) - Indicates repeated occurrences of a transitive dependency subtree. Gradle expands transitive dependency subtrees only once per project; repeat occurrences only display the root of the subtree, followed by this annotation.
+
+A web-based, searchable dependency report is available by adding the --scan option.
+
+[Incubating] Problems report is available at: file:///data/data/com.termux/files/home/Galeria3D/build/reports/problems/problems-report.html
+
+Deprecated Gradle features were used in this build, making it incompatible with Gradle 10.
+
+You can use '--warning-mode all' to show the individual deprecation warnings and determine if they come from your own scripts or plugins.
+
+For more on this, please refer to https://docs.gradle.org/9.6.1/userguide/command_line_interface.html#sec:command_line_warnings in the Gradle documentation.
+
+BUILD SUCCESSFUL in 2s
+1 actionable task: 1 executed
+Consider enabling configuration cache to speed up this build: https://docs.gradle.org/9.6.1/userguide/configuration_cache_enabling.html
