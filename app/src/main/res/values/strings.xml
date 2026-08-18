@@ -25,6 +25,15 @@
     <string name="details_hms">%1$d:%2$02d:%3$02d</string>
     <!-- Activity label. This might show up in the activity-picker -->
     <string name="movie_view_label">Video player</string>
+    <!-- Passo 9: MusicPlaybackService - canal de notificacao e rotulos dos botoes -->
+    <string name="player3d_notification_channel_name">Reproducao de musica</string>
+    <string name="player3d_notification_channel_description">Controles de reproducao da faixa atual</string>
+    <string name="player3d_play">Tocar</string>
+    <string name="player3d_pause">Pausar</string>
+    <string name="player3d_previous">Faixa anterior</string>
+    <string name="player3d_next">Proxima faixa</string>
+    <string name="player3d_repeat_all">Repetir todas</string>
+    <string name="player3d_repeat_one">Repetir uma</string>
     <!-- shown in the video player view while the video is being loaded, before it starts playing -->
     <string name="loading_video">Loading video\u2026</string>
     <string name="loading_image">Loading image\u2026</string>
