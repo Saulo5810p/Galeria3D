@@ -545,7 +545,8 @@ public class MoviePlayer implements
 
     @Override
     public void onRepeatModeChanged(MusicPlaybackService.RepeatMode mode) {
-        mController.setRepeatModeVisual(mode);
+        // Estado visual dos botoes de repeat (ALL/1) e trabalho do Passo 4.2,
+        // quando os botoes existirem de verdade nesta tela.
     }
 
     @Override
@@ -621,42 +622,6 @@ public class MoviePlayer implements
     @Override
     public void onReplay() {
         startVideo();
-    }
-
-    // Botoes novos da tela de reproducao (Passo 4.2). Previous/Next mandam
-    // o MESMO Intent ACTION_PREVIOUS/ACTION_NEXT que a notificacao ja manda
-    // (Passo 9) - o Service decide sozinho, com a MESMA logica de limiar de
-    // 3s ja testada em requestPrevious(), se e reinicio da faixa atual ou
-    // pedido de fila (onPreviousRequested/onNextRequested, ver acima).
-    // Evita duplicar essa logica de limiar em dois lugares.
-    @Override
-    public void onPrevious() {
-        sendPlaybackAction(MusicPlaybackService.ACTION_PREVIOUS);
-    }
-
-    @Override
-    public void onNext() {
-        sendPlaybackAction(MusicPlaybackService.ACTION_NEXT);
-    }
-
-    private void sendPlaybackAction(String action) {
-        Intent intent = new Intent(mContext, MusicPlaybackService.class);
-        intent.setAction(action);
-        mContext.startService(intent);
-    }
-
-    @Override
-    public void onToggleRepeatAll() {
-        if (mService != null) {
-            mService.toggleRepeatAll();
-        }
-    }
-
-    @Override
-    public void onToggleRepeatOne() {
-        if (mService != null) {
-            mService.toggleRepeatOne();
-        }
     }
 
     // Below are key events passed from MovieActivity.

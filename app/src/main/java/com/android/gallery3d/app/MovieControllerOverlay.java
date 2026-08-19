@@ -24,10 +24,27 @@ import android.view.View;
 import android.view.animation.Animation;
 import android.view.animation.Animation.AnimationListener;
 import android.view.animation.AnimationUtils;
+import android.widget.ImageView;
+import android.widget.ImageView.ScaleType;
 import com.android.gallery3d.R;
 
 /**
  * The playback controller for the Movie Player.
+ *
+ * Passo 4.2 (Player3D) - 4 botoes novos (Repetir todas, Faixa anterior,
+ * Proxima faixa, Repetir uma), construidos com o MESMO padrao programatico
+ * do botao de play/pause ja existente (CommonControllerOverlay.
+ * mPlayPauseReplayView): ImageView com bg_vidcontrol como fundo, ScaleType
+ * CENTER, clicavel. Ficam SO aqui (nao em CommonControllerOverlay, que
+ * tambem e a base de TrimControllerOverlay/TrimVideo, a tela de corte de
+ * video) - nao faz sentido repeat/anterior/proxima na tela de corte, que
+ * alias e uma funcionalidade de video ja fora do escopo de qualquer passo
+ * deste app de audio.
+ *
+ * Ordem da esquerda para a direita: [Repetir todas] [Anterior] [Play/Pause]
+ * [Proxima] [Repetir uma] - identica a ordem ja usada e testada na
+ * notificacao (MusicPlaybackService.buildNotification(), Passo 9), mesma
+ * fonte de verdade.
  */
 public class MovieControllerOverlay extends CommonControllerOverlay implements
         AnimationListener {
@@ -38,8 +55,37 @@ public class MovieControllerOverlay extends CommonControllerOverlay implements
     private final Runnable startHidingRunnable;
     private final Animation hideAnimation;
 
+    private final ImageView mRepeatAllView;
+    private final ImageView mPreviousView;
+    private final ImageView mNextView;
+    private final ImageView mRepeatOneView;
+
     public MovieControllerOverlay(Context context) {
         super(context);
+
+        LayoutParams wrapContent =
+                new LayoutParams(LayoutParams.WRAP_CONTENT, LayoutParams.WRAP_CONTENT);
+
+        mRepeatAllView = createExtraButton(context,
+                R.drawable.ic_vidcontrol_repeat_all, R.string.player3d_repeat_all);
+        addView(mRepeatAllView, wrapContent);
+
+        mPreviousView = createExtraButton(context,
+                R.drawable.ic_vidcontrol_previous, R.string.player3d_previous);
+        addView(mPreviousView, wrapContent);
+
+        mNextView = createExtraButton(context,
+                R.drawable.ic_vidcontrol_next, R.string.player3d_next);
+        addView(mNextView, wrapContent);
+
+        mRepeatOneView = createExtraButton(context,
+                R.drawable.ic_vidcontrol_repeat_one, R.string.player3d_repeat_one);
+        addView(mRepeatOneView, wrapContent);
+
+        mRepeatAllView.setVisibility(View.INVISIBLE);
+        mPreviousView.setVisibility(View.INVISIBLE);
+        mNextView.setVisibility(View.INVISIBLE);
+        mRepeatOneView.setVisibility(View.INVISIBLE);
 
         handler = new Handler();
         startHidingRunnable = new Runnable() {
@@ -53,6 +99,20 @@ public class MovieControllerOverlay extends CommonControllerOverlay implements
         hideAnimation.setAnimationListener(this);
 
         hide();
+    }
+
+    // Mesmo padrao de construcao do mPlayPauseReplayView (CommonControllerOverlay),
+    // so trocando o drawable do icone e a descricao de acessibilidade.
+    private ImageView createExtraButton(Context context, int iconRes, int contentDescriptionRes) {
+        ImageView view = new ImageView(context);
+        view.setImageResource(iconRes);
+        view.setContentDescription(context.getResources().getString(contentDescriptionRes));
+        view.setBackgroundResource(R.drawable.bg_vidcontrol);
+        view.setScaleType(ScaleType.CENTER);
+        view.setFocusable(true);
+        view.setClickable(true);
+        view.setOnClickListener(this);
+        return view;
     }
 
     @Override
@@ -93,6 +153,10 @@ public class MovieControllerOverlay extends CommonControllerOverlay implements
         startHideAnimation(mBackground);
         startHideAnimation(mTimeBar);
         startHideAnimation(mPlayPauseReplayView);
+        startHideAnimation(mRepeatAllView);
+        startHideAnimation(mPreviousView);
+        startHideAnimation(mNextView);
+        startHideAnimation(mRepeatOneView);
     }
 
     private void startHideAnimation(View view) {
@@ -106,6 +170,10 @@ public class MovieControllerOverlay extends CommonControllerOverlay implements
         mBackground.setAnimation(null);
         mTimeBar.setAnimation(null);
         mPlayPauseReplayView.setAnimation(null);
+        mRepeatAllView.setAnimation(null);
+        mPreviousView.setAnimation(null);
+        mNextView.setAnimation(null);
+        mRepeatOneView.setAnimation(null);
     }
 
     @Override
@@ -155,12 +223,86 @@ public class MovieControllerOverlay extends CommonControllerOverlay implements
         return true;
     }
 
+    // Cliques dos 4 botoes novos. mPlayPauseReplayView continua tratado
+    // pelo onClick(View) de CommonControllerOverlay (super.onClick).
+    @Override
+    public void onClick(View view) {
+        if (view == mPreviousView) {
+            cancelHiding();
+            if (mListener != null) mListener.onPrevious();
+            maybeStartHiding();
+            return;
+        }
+        if (view == mNextView) {
+            cancelHiding();
+            if (mListener != null) mListener.onNext();
+            maybeStartHiding();
+            return;
+        }
+        if (view == mRepeatAllView) {
+            if (mListener != null) mListener.onToggleRepeatAll();
+            return;
+        }
+        if (view == mRepeatOneView) {
+            if (mListener != null) mListener.onToggleRepeatOne();
+            return;
+        }
+        super.onClick(view);
+    }
+
+    // Posiciona os 4 botoes novos em linha horizontal ao redor do
+    // mPlayPauseReplayView (ja posicionado por super.onLayout()), na ordem
+    // [RepeatAll] [Previous] [PlayPause] [Next] [RepeatOne] - identica a
+    // ordem da notificacao (Passo 9).
+    @Override
+    protected void onLayout(boolean changed, int left, int top, int right, int bottom) {
+        super.onLayout(changed, left, top, right, bottom);
+
+        int centerX = mPlayPauseReplayView.getLeft() + mPlayPauseReplayView.getMeasuredWidth() / 2;
+        int centerY = mPlayPauseReplayView.getTop() + mPlayPauseReplayView.getMeasuredHeight() / 2;
+
+        int buttonWidth = mPlayPauseReplayView.getMeasuredWidth();
+        int gap = buttonWidth + buttonWidth / 3;
+
+        layoutCenteredAt(mPreviousView, centerX - gap, centerY);
+        layoutCenteredAt(mNextView, centerX + gap, centerY);
+        layoutCenteredAt(mRepeatAllView, centerX - gap * 2, centerY);
+        layoutCenteredAt(mRepeatOneView, centerX + gap * 2, centerY);
+    }
+
+    private void layoutCenteredAt(View view, int centerX, int centerY) {
+        int cw = view.getMeasuredWidth();
+        int ch = view.getMeasuredHeight();
+        view.layout(centerX - cw / 2, centerY - ch / 2, centerX + cw / 2, centerY + ch / 2);
+    }
+
     @Override
     protected void updateViews() {
         if (hidden) {
             return;
         }
         super.updateViews();
+        // Os 4 botoes novos seguem a mesma visibilidade do play/pause
+        // (escondidos durante LOADING/ERROR, visiveis em PLAYING/PAUSED).
+        int visibility = mPlayPauseReplayView.getVisibility();
+        mRepeatAllView.setVisibility(visibility);
+        mPreviousView.setVisibility(visibility);
+        mNextView.setVisibility(visibility);
+        mRepeatOneView.setVisibility(visibility);
+    }
+
+    /**
+     * Atualiza o icone dos botoes de repeat pra refletir o modo atual
+     * (chamado por MoviePlayer.onRepeatModeChanged, Passo 9/4.2). Troca pra
+     * uma variante com cor de destaque quando o respectivo modo esta ativo.
+     */
+    public void setRepeatModeVisual(MusicPlaybackService.RepeatMode mode) {
+        mRepeatAllView.setImageResource(mode == MusicPlaybackService.RepeatMode.ALL
+                ? R.drawable.ic_vidcontrol_repeat_all_active
+                : R.drawable.ic_vidcontrol_repeat_all);
+        mRepeatOneView.setImageResource(mode == MusicPlaybackService.RepeatMode.ONE
+                ? R.drawable.ic_vidcontrol_repeat_one_active
+                : R.drawable.ic_vidcontrol_repeat_one);
     }
 
     // TimeBar listener

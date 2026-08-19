@@ -28,11 +28,6 @@ public interface ControllerOverlay {
     void onShown();
     void onHidden();
     void onReplay();
-    // Passo 4.2 (Player3D): botoes novos da tela de reproducao de audio.
-    void onPrevious();
-    void onNext();
-    void onToggleRepeatAll();
-    void onToggleRepeatOne();
   }
 
   void setListener(Listener listener);

@@ -331,25 +331,6 @@ public class TrimVideo extends Activity implements
         playVideo();
     }
 
-    // Passo 4.2 (Player3D): TrimVideo (corte de video) esta fora do escopo
-    // de todos os passos deste app de audio - stubs vazios, existem so
-    // porque ControllerOverlay.Listener agora exige esses 4 metodos.
-    @Override
-    public void onPrevious() {
-    }
-
-    @Override
-    public void onNext() {
-    }
-
-    @Override
-    public void onToggleRepeatAll() {
-    }
-
-    @Override
-    public void onToggleRepeatOne() {
-    }
-
     @Override
     public void onCompletion(MediaPlayer mp) {
         mController.showEnded();
