@@ -1195,7 +1195,7 @@ public abstract class PhotoPage extends ActivityState implements
     public void playVideo(Activity activity, Uri uri, String title) {
         try {
             Intent intent = new Intent(Intent.ACTION_VIEW)
-                    .setDataAndType(uri, "video/*")
+                    .setDataAndType(uri, "audio/*")
                     .putExtra(Intent.EXTRA_TITLE, title)
                     .putExtra(MovieActivity.KEY_TREAT_UP_AS_BACK, true);
             activity.startActivityForResult(intent, REQUEST_PLAY_VIDEO);

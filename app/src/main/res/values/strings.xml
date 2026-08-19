@@ -34,6 +34,7 @@
     <string name="player3d_next">Proxima faixa</string>
     <string name="player3d_repeat_all">Repetir todas</string>
     <string name="player3d_repeat_one">Repetir uma</string>
+    <string name="player3d_no_cover_to_edit">Esta faixa não tem capa para editar</string>
     <!-- shown in the video player view while the video is being loaded, before it starts playing -->
     <string name="loading_video">Loading video\u2026</string>
     <string name="loading_image">Loading image\u2026</string>

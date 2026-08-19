@@ -262,19 +262,7 @@ public class MovieControllerOverlay extends CommonControllerOverlay implements
         int centerY = mPlayPauseReplayView.getTop() + mPlayPauseReplayView.getMeasuredHeight() / 2;
 
         int buttonWidth = mPlayPauseReplayView.getMeasuredWidth();
-
-        // Fix (Player3D): o gap antigo (buttonWidth + buttonWidth/3) era um
-        // multiplo fixo que, multiplicado por 2 para os botoes extremos
-        // (RepeatAll/RepeatOne), estourava a largura da tela em celulares
-        // comuns - os 2 botoes extremos ficavam fora da area visivel.
-        // Agora o gap eh limitado pelo espaco real disponivel entre o
-        // centro e a borda do controller, garantindo que os 5 botoes
-        // sempre cabem, com espacamento simetrico.
-        int usableHalfWidth = Math.min(centerX - left, right - centerX);
-        int maxGapForTwoSlots = (usableHalfWidth - buttonWidth / 2) / 2;
-
-        int preferredGap = buttonWidth + buttonWidth / 3;
-        int gap = Math.max(buttonWidth / 2, Math.min(preferredGap, maxGapForTwoSlots));
+        int gap = buttonWidth + buttonWidth / 3;
 
         layoutCenteredAt(mPreviousView, centerX - gap, centerY);
         layoutCenteredAt(mNextView, centerX + gap, centerY);

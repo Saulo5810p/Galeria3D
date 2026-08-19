@@ -655,9 +655,29 @@ public abstract class PhotoPage extends ActivityState implements
             return;
         }
 
+        // Passo 4.3 (Player3D): quando o item aberto e uma faixa de audio
+        // (MEDIA_TYPE_VIDEO, ver Passo 1.4), o editor de fotos deve editar a
+        // CAPA da faixa, nao o arquivo de audio em si - getContentUri() de
+        // LocalAudio aponta pro audio, entao usamos getCoverUriForEdit() para
+        // resolver e persistir a capa como imagem editavel de verdade.
+        Uri editUri = current.getContentUri();
+        String editMimeType = current.getMimeType();
+        if (current.getMediaType() == MediaObject.MEDIA_TYPE_VIDEO
+                && current instanceof com.android.gallery3d.data.LocalAudio) {
+            Uri coverUri = ((com.android.gallery3d.data.LocalAudio) current)
+                    .getCoverUriForEdit(mActivity.getAndroidContext());
+            if (coverUri == null) {
+                Toast.makeText((Activity) mActivity,
+                        R.string.player3d_no_cover_to_edit, Toast.LENGTH_SHORT).show();
+                return;
+            }
+            editUri = coverUri;
+            editMimeType = "image/jpeg";
+        }
+
         Intent intent = new Intent(ACTION_NEXTGEN_EDIT);
 
-        intent.setDataAndType(current.getContentUri(), current.getMimeType())
+        intent.setDataAndType(editUri, editMimeType)
                 .setFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION);
         if (mActivity.getPackageManager()
                 .queryIntentActivities(intent, PackageManager.MATCH_DEFAULT_ONLY).size() == 0) {
