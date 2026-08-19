@@ -1,4 +1,193 @@
-/*
+#!/usr/bin/env python3
+# -*- coding: utf-8 -*-
+"""
+Passo 4.1 - Conectar MoviePlayer.java ao MusicPlaybackService (Player3D)
+
+O que este script faz (item 9.3 da especificacao, feito aqui no Passo 4
+como o proprio Passo 9 ja previa):
+1. Reescreve app/src/main/java/com/android/gallery3d/app/MoviePlayer.java:
+   - Troca o motor de VideoView para MediaPlayer puro hospedado no
+     MusicPlaybackService (Passo 9) - MoviePlayer vira cliente do Service
+     via bindService()/Binder, implementando MusicPlaybackService.Callback
+     e MusicPlaybackService.QueueController.
+   - mCoverView (ImageView) mostra a capa da faixa atual, extraida do
+     proprio Uri (mesma tecnica do Passo 1.5: capa embutida via
+     MediaMetadataRetriever, com fallback pra capa do album).
+   - Remove o bloco de "esconder o VideoView por um instante" (nao se
+     aplica mais a audio).
+   - Mantem a assinatura publica da classe (construtor, onPause/onResume/
+     onDestroy/onSaveInstanceState/onKeyDown/onKeyUp/onCompletion) intacta,
+     entao MovieActivity.java e PhotoPage.java NAO precisam mudar.
+2. Reescreve app/src/main/res/layout/movie_view.xml: troca a tag
+   <VideoView android:id="@+id/surface_view" .../> por um <ImageView>
+   com o mesmo id (o findViewById em MoviePlayer.java continua igual).
+
+O que este script NAO faz (fica pro Passo 4.2, proximo):
+- Os 4 botoes novos (Repetir todas / Anterior / Proxima / Repetir uma) em
+  CommonControllerOverlay.java/MovieControllerOverlay.java.
+- Fila/playlist real (onNextRequested/onPreviousRequested tem, por ora,
+  um comportamento minimo e documentado no proprio codigo).
+- O botao do editor de fotos na tela de reproducao (item 4.3).
+
+trim_view.xml e TrimVideo.java NAO sao tocados por este script: usam a
+mesma id "surface_view" mas sao uma tela separada (recorte de video), fora
+do escopo do Passo 4 - a especificacao so lista MoviePlayer.java e os
+ControllerOverlay para este passo.
+
+Rode este script na RAIZ do projeto (~/Galeria3D no Termux):
+    python3 passo4_1_conectar_service.py
+
+Regras seguidas (workflow combinado):
+- Falha cedo se pre-requisitos (Passo 9) nao estiverem no estado esperado,
+  sem tocar em nada.
+- Faz backup de cada arquivo existente que for editado, FORA da arvore
+  res/ (pasta passo4_backups/ na raiz do projeto, espelhando o caminho) -
+  ver a licao aprendida no handoff do Passo 9.
+- E idempotente: rodar de novo depois de aplicado nao duplica nem corrompe
+  nada, so avisa que ja foi aplicado.
+- Termina com verificacao (grep) confirmando que nao sobrou VideoView em
+  nenhum dos dois arquivos e que os pontos de conexao com o Service estao
+  presentes.
+"""
+
+import os
+import sys
+
+MOVIE_PLAYER_PATH = "app/src/main/java/com/android/gallery3d/app/MoviePlayer.java"
+MOVIE_VIEW_LAYOUT_PATH = "app/src/main/res/layout/movie_view.xml"
+SERVICE_JAVA_PATH = "app/src/main/java/com/android/gallery3d/app/MusicPlaybackService.java"
+COVER_PLACEHOLDER_PATH = "app/src/main/res/drawable-nodpi/ic_audio_cover_placeholder.png"
+BACKUP_DIR = "passo4_backups"
+
+REQUIRED_FILES = [MOVIE_PLAYER_PATH, MOVIE_VIEW_LAYOUT_PATH, SERVICE_JAVA_PATH,
+                   COVER_PLACEHOLDER_PATH]
+
+
+def fail(msg):
+    print("ERRO: " + msg)
+    sys.exit(1)
+
+
+def read(path):
+    with open(path, "r", encoding="utf-8") as fh:
+        return fh.read()
+
+
+def write(path, content):
+    with open(path, "w", encoding="utf-8") as fh:
+        fh.write(content)
+
+
+def backup(path):
+    # Backups vivem FORA da arvore res/ (passo4_backups/ na raiz do
+    # projeto, espelhando o caminho original) - ver a licao do Passo 9
+    # sobre nao deixar nada que nao termine em .xml dentro de res/values/.
+    bak = os.path.join(BACKUP_DIR, path + ".bak_passo4_1")
+    if not os.path.isfile(bak):
+        os.makedirs(os.path.dirname(bak), exist_ok=True)
+        write(bak, read(path))
+        print("Backup criado: %s" % bak)
+    else:
+        print("Backup ja existia, mantido: %s" % bak)
+
+
+def check_prereqs():
+    for f in REQUIRED_FILES:
+        if not os.path.isfile(f):
+            fail(
+                "arquivo esperado nao encontrado: %s\n"
+                "Rode este script na raiz do projeto (~/Galeria3D), depois "
+                "do Passo 9 (passo9_service_notificacao.py)." % f
+            )
+    service = read(SERVICE_JAVA_PATH)
+    for marker in ("public class LocalBinder", "public void playTrack(",
+                   "interface Callback", "interface QueueController"):
+        if marker not in service:
+            fail(
+                "MusicPlaybackService.java nao parece ter a API esperada "
+                "do Passo 9 (%r nao encontrado). Rode o Passo 9 antes "
+                "deste script." % marker
+            )
+
+
+def already_applied():
+    if not os.path.isfile(MOVIE_PLAYER_PATH):
+        return False
+    content = read(MOVIE_PLAYER_PATH)
+    return "MusicPlaybackService.Callback" in content
+
+
+def apply_movie_player():
+    backup(MOVIE_PLAYER_PATH)
+    write(MOVIE_PLAYER_PATH, MOVIE_PLAYER_JAVA)
+    print("Reescrito: %s (%d bytes)" % (MOVIE_PLAYER_PATH, len(MOVIE_PLAYER_JAVA)))
+
+
+def apply_movie_view_layout():
+    current = read(MOVIE_VIEW_LAYOUT_PATH)
+    if "<ImageView" in current and "surface_view" in current:
+        print("Aviso: %s ja usa ImageView, mantido." % MOVIE_VIEW_LAYOUT_PATH)
+        return
+    backup(MOVIE_VIEW_LAYOUT_PATH)
+    write(MOVIE_VIEW_LAYOUT_PATH, MOVIE_VIEW_XML)
+    print("Reescrito: %s (%d bytes)" % (MOVIE_VIEW_LAYOUT_PATH, len(MOVIE_VIEW_XML)))
+
+
+def verify():
+    print("\n--- Verificacao final ---")
+    problems = []
+
+    mp = read(MOVIE_PLAYER_PATH)
+    if "import android.widget.VideoView" in mp or "VideoView mVideoView" in mp \
+            or "(VideoView)" in mp:
+        problems.append("MoviePlayer.java ainda usa a classe VideoView")
+    if "MusicPlaybackService.Callback" not in mp:
+        problems.append("MoviePlayer.java nao implementa MusicPlaybackService.Callback")
+    if "MusicPlaybackService.QueueController" not in mp:
+        problems.append("MoviePlayer.java nao implementa MusicPlaybackService.QueueController")
+    if "bindService(" not in mp:
+        problems.append("MoviePlayer.java nao chama bindService()")
+    if "unbindService(" not in mp:
+        problems.append("MoviePlayer.java nao chama unbindService() (vazamento de bind)")
+
+    layout = read(MOVIE_VIEW_LAYOUT_PATH)
+    if "<VideoView" in layout:
+        problems.append("movie_view.xml ainda usa a tag <VideoView>")
+    if 'android:id="@+id/surface_view"' not in layout:
+        problems.append("movie_view.xml perdeu o id surface_view")
+
+    if problems:
+        print("Encontrados problemas na verificacao final:")
+        for p in problems:
+            print("  - " + p)
+        sys.exit(1)
+
+    print("Tudo certo: VideoView removido, MoviePlayer conectado ao Service.")
+
+
+def main():
+    check_prereqs()
+    if already_applied():
+        print(
+            "Aviso: %s ja foi conectado ao MusicPlaybackService (Passo 4.1 "
+            "ja aplicado). Nada a fazer." % MOVIE_PLAYER_PATH
+        )
+        # Ainda assim confere/aplica o layout, caso so um dos dois tenha
+        # sido aplicado numa execucao anterior interrompida.
+        apply_movie_view_layout()
+        verify()
+        return
+    apply_movie_player()
+    apply_movie_view_layout()
+    verify()
+    print("\nPasso 4.1 aplicado. Agora rode: ./gradlew assembleDebug")
+    print(
+        "Proximo (Passo 4.2): os 4 botoes novos (ALL/Anterior/Proxima/1) em "
+        "CommonControllerOverlay.java/MovieControllerOverlay.java."
+    )
+
+
+MOVIE_PLAYER_JAVA = """/*
  * Copyright (C) 2009 The Android Open Source Project
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
@@ -759,3 +948,38 @@ class Bookmarker {
         return null;
     }
 }
+"""
+
+MOVIE_VIEW_XML = """<?xml version="1.0" encoding="utf-8"?>
+<!-- Copyright (C) 2007 The Android Open Source Project
+
+     Licensed under the Apache License, Version 2.0 (the "License");
+     you may not use this file except in compliance with the License.
+     You may obtain a copy of the License at
+
+          http://www.apache.org/licenses/LICENSE-2.0
+
+     Unless required by applicable law or agreed to in writing, software
+     distributed under the License is distributed on an "AS IS" BASIS,
+     WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+     See the License for the specific language governing permissions and
+     limitations under the License.
+-->
+
+<RelativeLayout xmlns:android="http://schemas.android.com/apk/res/android"
+        android:id="@+id/movie_view_root"
+        android:background="@android:color/black"
+        android:layout_width="match_parent"
+        android:layout_height="match_parent">
+    <!-- Passo 4.1: capa da faixa atual no lugar do VideoView (motor trocado
+         para MediaPlayer puro, hospedado no MusicPlaybackService). -->
+    <ImageView android:id="@+id/surface_view"
+            android:layout_width="match_parent"
+            android:layout_height="match_parent"
+            android:layout_centerInParent="true"
+            android:scaleType="centerCrop" />
+</RelativeLayout>
+"""
+
+if __name__ == "__main__":
+    main()

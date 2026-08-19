@@ -19,11 +19,8 @@
         android:background="@android:color/black"
         android:layout_width="match_parent"
         android:layout_height="match_parent">
-    <!-- Passo 4.1: capa da faixa atual no lugar do VideoView (motor trocado
-         para MediaPlayer puro, hospedado no MusicPlaybackService). -->
-    <ImageView android:id="@+id/surface_view"
+    <VideoView android:id="@+id/surface_view"
             android:layout_width="match_parent"
             android:layout_height="match_parent"
-            android:layout_centerInParent="true"
-            android:scaleType="centerCrop" />
+            android:layout_centerInParent="true" />
 </RelativeLayout>
