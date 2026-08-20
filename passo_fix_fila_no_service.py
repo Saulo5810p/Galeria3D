@@ -1,4 +1,81 @@
-/*
+#!/usr/bin/env python3
+"""
+CORREÇÃO ARQUITETURAL: botões da notificação "não fazem nada".
+
+Causa raiz confirmada: a fila de próxima/anterior faixa (lista de Uris do
+mesmo álbum + índice atual) vivia inteiramente dentro de MoviePlayer, que
+é destruído junto com a MovieActivity. A notificação de mídia (e a tela
+de bloqueio, e o MediaSession) só conversam com MusicPlaybackService, que
+é quem sobrevive em foreground. Quando o Android destrói a Activity (o
+usuário sai do app, mantém só a notificação — o caso de uso mais comum de
+notificação de mídia), MoviePlayer.onDestroy() zera
+mService.setQueueController(null), e a partir daí requestNext()/
+requestPrevious() no Service não têm mais ninguém pra perguntar "qual é a
+próxima faixa" — os botões literalmente não têm o que fazer.
+
+Correção: a fila passa a viver DENTRO do MusicPlaybackService (que é quem
+sobrevive). MoviePlayer deixa de guardar sua própria cópia da fila e
+passa a pedir para o Service carregá-la (mService.loadQueueForAlbum(...))
+assim que sabe o albumId da faixa aberta. O Service passa a decidir
+sozinho, internamente, para onde navegar em requestNext()/
+requestPrevious() — funciona com ou sem MoviePlayer vinculado.
+
+Mudança de contrato entre os dois arquivos:
+  - MusicPlaybackService.QueueController (interface) É REMOVIDA - não é
+    mais necessária, o Service não pergunta mais pra ninguém.
+  - MusicPlaybackService.Callback ganha 2 métodos novos:
+      onTrackChanged(Uri uri, String title, String artist, Bitmap cover)
+        - disparado sempre que a faixa tocando mudar, veio de onde vier
+          (troca manual via playTrack(), navegação de fila por clique na
+          tela, navegação de fila pela notificação/MediaSession/lockscreen)
+      onPlaybackEndedWithNoQueue()
+        - disparado SÓ no caso combinado com o usuário: a faixa chegou ao
+          fim tocando sozinha, sem fila carregada (ou fila com 1 faixa) e
+          sem repeat ativo. É o único caso em que a tela de reprodução
+          deve fechar sozinha - preservado exatamente como antes, só que
+          agora como uma notificação explícita ao Callback (só a Activity
+          sabe fazer finish()).
+  - MoviePlayer implementa os 2 métodos novos e PARA de implementar
+    QueueController (onNextRequested/onPreviousRequested removidos, e com
+    eles AlbumQueueLoader, mQueueUris/mQueueTitles/mQueueArtists/
+    mQueueIndex, hasQueue(), isRepeatAll(), playQueueIndex() - toda essa
+    lógica se mudou para dentro do Service).
+
+Tudo o que já funcionava é preservado: bookmark de "retomar de onde
+parou", capa embutida/fallback de álbum, edição de capa, os 5 botões da
+tela (Anterior/Play/Próxima/RepeatAll/RepeatOne/EditCover), a extra
+EXTRA_FINISH_ON_COMPLETION=false (Fix anterior), o layout estilo player
+de música (Fix anterior).
+
+Uso (Termux, dentro de ~/Galeria3D):
+    python3 passo_fix_fila_no_service.py
+"""
+import sys
+from pathlib import Path
+
+PROJECT_ROOT = Path.home() / "Galeria3D"
+MUSIC_SERVICE = PROJECT_ROOT / "app/src/main/java/com/android/gallery3d/app/MusicPlaybackService.java"
+MOVIE_PLAYER = PROJECT_ROOT / "app/src/main/java/com/android/gallery3d/app/MoviePlayer.java"
+
+
+def fail(msg):
+    print(f"ERRO: {msg}")
+    sys.exit(1)
+
+
+def backup(path: Path):
+    b = path.with_suffix(path.suffix + ".bak")
+    b.write_text(path.read_text(encoding="utf-8"), encoding="utf-8")
+    print(f"  Backup salvo em: {b}")
+
+
+MARKER = "loadQueueForAlbum"
+
+# =======================================================================
+# MusicPlaybackService.java — arquivo completo novo
+# =======================================================================
+
+MUSIC_SERVICE_NEW = '''/*
  * Passo 9 - Foreground Service + notificacao com 5 controles.
  *
  * Nao existia nenhum Service/MediaSession/NotificationChannel de midia no
@@ -809,3 +886,590 @@ public class MusicPlaybackService extends Service
         mNotificationManager.notify(NOTIFICATION_ID, buildNotification());
     }
 }
+'''
+
+
+def step_music_service():
+    if not MUSIC_SERVICE.exists():
+        fail(f"Arquivo não encontrado: {MUSIC_SERVICE}")
+    content = MUSIC_SERVICE.read_text(encoding="utf-8")
+    if MARKER in content:
+        print("[1/2 MusicPlaybackService.java] Já aplicado antes — nada a fazer (idempotente).")
+        return
+    backup(MUSIC_SERVICE)
+    MUSIC_SERVICE.write_text(MUSIC_SERVICE_NEW, encoding="utf-8")
+    print("[1/2 MusicPlaybackService.java] OK — fila migrada para dentro do Service.")
+
+
+# =======================================================================
+# MoviePlayer.java — patches cirúrgicos (arquivo grande, edição pontual)
+# =======================================================================
+
+def step_movie_player():
+    if not MOVIE_PLAYER.exists():
+        fail(f"Arquivo não encontrado: {MOVIE_PLAYER}")
+    content = MOVIE_PLAYER.read_text(encoding="utf-8")
+    if MARKER in content:
+        print("[2/2 MoviePlayer.java] Já aplicado antes — nada a fazer (idempotente).")
+        return
+
+    backup(MOVIE_PLAYER)
+
+    # --- 2.0: cabeçalho da classe (comentário) ---
+    old_header = '''/*
+ * Passo 4.1 (Player3D) - motor de renderizacao trocado de VideoView para
+ * MediaPlayer puro. Desde o Passo 9, o MediaPlayer real nao mora mais aqui:
+ * mora no MusicPlaybackService, que roda em foreground e sobrevive mesmo
+ * com a tela de reproducao fechada. Esta classe virou um cliente do
+ * Service via bindService()/Binder - implementa MusicPlaybackService.Callback
+ * (estado de reproducao/erro) e MusicPlaybackService.QueueController
+ * (proxima/anterior faixa), que e a mesma fonte de verdade usada pela
+ * notificacao e pela tela de bloqueio (item 9.3 da especificacao).
+ *
+ * Fix (Player3D): o app agora tem uma fila real, carregada de forma
+ * assincrona (AlbumQueueLoader) com as outras faixas do MESMO album da
+ * faixa aberta. onNextRequested()/onPreviousRequested() navegam pra
+ * faixa real seguinte/anterior quando essa fila existe; sem fila (album
+ * com 1 faixa so, ou faixa fora do MediaStore local), cai no
+ * comportamento antigo, honesto e minimo: "proxima" ao fim da faixa ==
+ * fim da reproducao, "anterior" volta pro inicio da faixa atual.
+ */'''
+    new_header = '''/*
+ * Passo 4.1 (Player3D) - motor de renderizacao trocado de VideoView para
+ * MediaPlayer puro. Desde o Passo 9, o MediaPlayer real nao mora mais aqui:
+ * mora no MusicPlaybackService, que roda em foreground e sobrevive mesmo
+ * com a tela de reproducao fechada. Esta classe virou um cliente do
+ * Service via bindService()/Binder - implementa MusicPlaybackService.Callback
+ * (estado de reproducao/erro, mudanca de faixa, fim de reproducao sem
+ * fila), que e a mesma fonte de verdade usada pela notificacao e pela
+ * tela de bloqueio (item 9.3 da especificacao).
+ *
+ * Fix (Player3D): a fila real de outras faixas do MESMO album da faixa
+ * aberta - e a decisao de para onde navegar em "proxima"/"anterior" -
+ * agora vivem dentro de MusicPlaybackService, nao aqui (ver comentario no
+ * topo de MusicPlaybackService.java). Motivo: MoviePlayer e destruido
+ * junto com a MovieActivity quando o Android fecha a tela, mas a
+ * notificacao/MediaSession/lockscreen (que tambem navegam a fila)
+ * precisam continuar funcionando mesmo nesse caso - por isso quem manda
+ * na fila e o Service, que sobrevive em foreground. Esta classe so reage
+ * as mudancas via onTrackChanged()/onPlaybackEndedWithNoQueue().
+ */'''
+    if content.count(old_header) != 1:
+        fail("Comentário de cabeçalho da classe não encontrado (ou "
+             "ambíguo) — verifique manualmente.")
+    content = content.replace(old_header, new_header, 1)
+
+    # --- 2.1: implements MusicPlaybackService.QueueController removido ---
+    old_impl = '''public class MoviePlayer implements
+        MusicPlaybackService.Callback, MusicPlaybackService.QueueController,
+        ControllerOverlay.Listener {'''
+    new_impl = '''public class MoviePlayer implements
+        MusicPlaybackService.Callback, ControllerOverlay.Listener {'''
+    if content.count(old_impl) != 1:
+        fail("Assinatura de 'class MoviePlayer implements' não encontrada "
+             "(ou ambígua) — verifique manualmente.")
+    content = content.replace(old_impl, new_impl, 1)
+
+    # --- 2.1b: remove as 2 chamadas a mService.setQueueController(...) -
+    # o metodo nao existe mais em MusicPlaybackService (QueueController foi
+    # removido) - sem isso o projeto nao compila.
+    old_connect = '''            mService.setCallback(MoviePlayer.this);
+            mService.setQueueController(MoviePlayer.this);
+            maybeStartPlayback();'''
+    new_connect = '''            mService.setCallback(MoviePlayer.this);
+            maybeStartPlayback();'''
+    if content.count(old_connect) != 1:
+        fail("Ponto de onServiceConnected (setCallback+setQueueController) "
+             "não encontrado (ou ambíguo) — verifique manualmente.")
+    content = content.replace(old_connect, new_connect, 1)
+
+    old_disconnect = '''            if (mService != null) {
+                mService.setCallback(null);
+                mService.setQueueController(null);
+            }'''
+    new_disconnect = '''            if (mService != null) {
+                mService.setCallback(null);
+            }'''
+    if content.count(old_disconnect) != 1:
+        fail("Ponto de onDestroy (setCallback(null)+setQueueController(null)) "
+             "não encontrado (ou ambíguo) — verifique manualmente.")
+    content = content.replace(old_disconnect, new_disconnect, 1)
+
+    # --- 2.2: remove os campos de fila local ---
+    old_fields = '''    // Fix (Player3D): fila real das outras faixas do MESMO album da faixa
+    // aberta. Antes disso existir, "proxima" so fechava a tela (era
+    // tratado como fim de reproducao) e "anterior" so reiniciava a faixa
+    // atual - nenhum dos dois navegava de verdade. Carregada de forma
+    // assincrona por AlbumQueueLoader assim que sabemos o albumId (depois
+    // que TrackMetadataLoader termina). mQueueIndex == -1 significa "fila
+    // ainda nao carregada, ou faixa sem album/fora de MediaStore local" -
+    // nesse caso next/previous caem no comportamento antigo, honesto e
+    // minimo (fim de reproducao / reiniciar faixa atual).
+    private Uri[] mQueueUris;
+    private String[] mQueueTitles;
+    private String[] mQueueArtists;
+    private int mQueueIndex = -1;
+    // Uri da faixa TOCANDO agora - pode mudar ao navegar pela fila. mUri
+    // (acima) continua sendo a faixa com que a tela foi aberta, usada so
+    // para o bookmark de "retomar de onde parou" do fluxo original.
+    private Uri mCurrentPlayUri;'''
+    new_fields = '''    // Fix (Player3D): a fila de proxima/anterior faixa (mesmo album) agora
+    // mora em MusicPlaybackService, nao aqui - ver comentario no topo de
+    // MusicPlaybackService.java. MoviePlayer so guarda a Uri tocando
+    // AGORA (atualizada via callback onTrackChanged()), nao a fila em si.
+    // Uri da faixa TOCANDO agora - pode mudar ao navegar pela fila. mUri
+    // (acima) continua sendo a faixa com que a tela foi aberta, usada so
+    // para o bookmark de "retomar de onde parou" do fluxo original.
+    private Uri mCurrentPlayUri;'''
+    if content.count(old_fields) != 1:
+        fail("Bloco de campos de fila (mQueueUris etc) não encontrado (ou "
+             "ambíguo) em MoviePlayer.java — verifique manualmente.")
+    content = content.replace(old_fields, new_fields, 1)
+
+    # --- 2.3: TrackMetadataLoader.onPostExecute - troca AlbumQueueLoader
+    # local por mService.loadQueueForAlbum() ---
+    old_post_execute = '''        @Override
+        protected void onPostExecute(Result result) {
+            mTrackTitle = result.title != null ? result.title : "";
+            mTrackArtist = result.artist != null ? result.artist : "";
+            mTrackCover = result.cover;
+            if (result.cover != null) {
+                mCoverView.setImageBitmap(result.cover);
+            } else {
+                mCoverView.setImageResource(R.drawable.ic_audio_cover_placeholder);
+            }
+            mMetadataLoaded = true;
+            // Fix (Player3D): assim que sabemos o albumId, carrega a fila
+            // real das outras faixas do mesmo album em segundo plano, pra
+            // next/previous poderem navegar de verdade.
+            if (result.albumId >= 0) {
+                new AlbumQueueLoader(result.albumId).execute();
+            }
+            maybeStartPlayback();
+        }
+    }'''
+    new_post_execute = '''        @Override
+        protected void onPostExecute(Result result) {
+            mTrackTitle = result.title != null ? result.title : "";
+            mTrackArtist = result.artist != null ? result.artist : "";
+            mTrackCover = result.cover;
+            if (result.cover != null) {
+                mCoverView.setImageBitmap(result.cover);
+            } else {
+                mCoverView.setImageResource(R.drawable.ic_audio_cover_placeholder);
+            }
+            mMetadataLoaded = true;
+            maybeStartPlayback();
+        }
+    }
+
+    // Fix (Player3D): chamado depois que o Service esta vinculado E a
+    // faixa comecou a tocar de fato (mCurrentPlayUri ja e a Uri real
+    // tocando) - pede ao Service para carregar a fila do album em segundo
+    // plano. A fila passa a viver la, nao aqui (ver comentario no topo de
+    // MusicPlaybackService.java).
+    private void requestQueueLoad(long albumId) {
+        if (mService != null && albumId >= 0) {
+            mService.loadQueueForAlbum(albumId, mCurrentPlayUri);
+        }
+    }'''
+    if content.count(old_post_execute) != 1:
+        fail("TrackMetadataLoader.onPostExecute() não encontrado no formato "
+             "esperado (ou ambíguo) em MoviePlayer.java — verifique manualmente.")
+    content = content.replace(old_post_execute, new_post_execute, 1)
+
+    # --- 2.4: guardar albumId para poder pedir a fila assim que o Service
+    # conectar (caso a conexao termine DEPOIS dos metadados, ordem nao
+    # garantida entre as duas tasks assincronas do construtor) ---
+    old_result_class = '''        final class Result {
+            String title;
+            String artist;
+            Bitmap cover;
+            long albumId = -1;
+        }'''
+    # (mantido sem mudanca - so confirmando que existe, ancora abaixo)
+    if content.count(old_result_class) != 1:
+        fail("Classe Result de TrackMetadataLoader não encontrada (ou "
+             "ambígua) — verifique manualmente.")
+
+    old_on_post_execute_2 = '''            mMetadataLoaded = true;
+            maybeStartPlayback();
+        }
+    }
+
+    // Fix (Player3D): chamado depois'''
+    new_on_post_execute_2 = '''            mMetadataLoaded = true;
+            mPendingAlbumId = result.albumId;
+            maybeStartPlayback();
+        }
+    }
+
+    // Fix (Player3D): chamado depois'''
+    if content.count(old_on_post_execute_2) != 1:
+        fail("Ponto de ancoragem para mPendingAlbumId não encontrado (ou "
+             "ambíguo) — verifique manualmente.")
+    content = content.replace(old_on_post_execute_2, new_on_post_execute_2, 1)
+
+    # --- 2.5: declarar mPendingAlbumId junto dos outros campos de estado ---
+    old_state_fields = '''    private boolean mServiceBound;
+    private boolean mMetadataLoaded;
+    private boolean mStarted;'''
+    new_state_fields = '''    private boolean mServiceBound;
+    private boolean mMetadataLoaded;
+    private boolean mStarted;
+    // Fix (Player3D): albumId resolvido por TrackMetadataLoader, guardado
+    // ate o Service estar vinculado para podermos pedir loadQueueForAlbum()
+    // (as duas tasks assincronas do construtor - metadados e bind do
+    // Service - nao tem ordem garantida entre si).
+    private long mPendingAlbumId = -1;
+    private boolean mQueueRequested;'''
+    if content.count(old_state_fields) != 1:
+        fail("Bloco de campos de estado (mServiceBound/mMetadataLoaded/"
+             "mStarted) não encontrado (ou ambíguo) — verifique manualmente.")
+    content = content.replace(old_state_fields, new_state_fields, 1)
+
+    # --- 2.6: maybeStartPlayback() passa a tambem disparar o pedido de
+    # fila quando tanto o Service quanto o albumId estiverem prontos ---
+    old_maybe_start = '''    private void maybeStartPlayback() {
+        if (mStarted || !mServiceBound || !mMetadataLoaded) return;
+        mStarted = true;
+
+        if (mVideoPosition > 0) {'''
+    new_maybe_start = '''    private void maybeStartPlayback() {
+        // Fix (Player3D): o pedido de fila so depende de Service vinculado
+        // + albumId conhecido (nao do inicio da reproducao em si) - roda
+        // assim que os dois estiverem prontos, uma unica vez.
+        if (mServiceBound && mMetadataLoaded && !mQueueRequested) {
+            mQueueRequested = true;
+            requestQueueLoad(mPendingAlbumId);
+        }
+
+        if (mStarted || !mServiceBound || !mMetadataLoaded) return;
+        mStarted = true;
+
+        if (mVideoPosition > 0) {'''
+    if content.count(old_maybe_start) != 1:
+        fail("maybeStartPlayback() não encontrado no formato esperado (ou "
+             "ambíguo) — verifique manualmente.")
+    content = content.replace(old_maybe_start, new_maybe_start, 1)
+
+    # --- 2.7: remove decodeEmbeddedCover/decodeAlbumArtFallback/Legacy
+    # duplicados? NAO - mantidos aqui tambem, pois TrackMetadataLoader
+    # (metadados da faixa ABERTA originalmente) continua usando-os. So
+    # removemos o que era exclusivo de navegacao de fila (AlbumQueueLoader,
+    # QueueCoverLoader), que migrou pro Service.
+
+    old_album_queue_loader_and_queue_cover = '''    // Fix (Player3D): carrega as outras faixas do MESMO album (mesmo
+    // ALBUM_ID da faixa aberta) pra next/previous poderem navegar de
+    // verdade dentro do album, em vez de fechar a tela (next) ou so
+    // reiniciar a faixa atual (previous). Ordenada por numero da faixa,
+    // com titulo como desempate - mesmo criterio usado pra playlists de
+    // album em qualquer tocador de musica.
+    private final class AlbumQueueLoader extends AsyncTask<Void, Void, AlbumQueueLoader.Result> {
+        private final long mAlbumId;
+
+        AlbumQueueLoader(long albumId) {
+            mAlbumId = albumId;
+        }
+
+        final class Result {
+            Uri[] uris;
+            String[] titles;
+            String[] artists;
+            int currentIndex = -1;
+        }
+
+        @Override
+        protected Result doInBackground(Void... params) {
+            Result result = new Result();
+            ContentResolver resolver = mContext.getContentResolver();
+            String[] projection = {
+                    AudioColumns._ID, AudioColumns.TITLE, AudioColumns.ARTIST,
+            };
+            String selection = AudioColumns.ALBUM_ID + "=?";
+            String[] selectionArgs = {String.valueOf(mAlbumId)};
+            String sortOrder = AudioColumns.TRACK + " ASC, " + AudioColumns.TITLE + " ASC";
+
+            long currentId = -1;
+            try {
+                currentId = ContentUris.parseId(mCurrentPlayUri);
+            } catch (Throwable ignored) {
+                // Uri sem _id numerico no final (ex.: content:// vindo de
+                // outro provider) - sem como comparar, a fila fica vazia e
+                // o comportamento antigo (sem navegacao real) e mantido.
+            }
+
+            Cursor cursor = null;
+            try {
+                cursor = resolver.query(Media.EXTERNAL_CONTENT_URI, projection,
+                        selection, selectionArgs, sortOrder);
+                if (cursor != null && cursor.getCount() > 0) {
+                    int count = cursor.getCount();
+                    result.uris = new Uri[count];
+                    result.titles = new String[count];
+                    result.artists = new String[count];
+                    int i = 0;
+                    while (cursor.moveToNext()) {
+                        long id = cursor.getLong(0);
+                        result.uris[i] = ContentUris.withAppendedId(Media.EXTERNAL_CONTENT_URI, id);
+                        result.titles[i] = cursor.getString(1);
+                        result.artists[i] = cursor.getString(2);
+                        if (id == currentId) {
+                            result.currentIndex = i;
+                        }
+                        i++;
+                    }
+                }
+            } catch (Throwable t) {
+                Log.w(TAG, "falha ao carregar fila do album " + mAlbumId, t);
+            } finally {
+                if (cursor != null) cursor.close();
+            }
+            return result;
+        }
+
+        @Override
+        protected void onPostExecute(Result result) {
+            if (result.uris == null || result.uris.length <= 1 || result.currentIndex < 0) {
+                // Album com 1 faixa so (ou faixa nao reencontrada na
+                // consulta) - nao ha o que navegar, fila fica vazia e
+                // hasQueue() continua reportando false.
+                return;
+            }
+            mQueueUris = result.uris;
+            mQueueTitles = result.titles;
+            mQueueArtists = result.artists;
+            mQueueIndex = result.currentIndex;
+        }
+    }
+
+    // Fix (Player3D): carrega a capa da faixa ao navegar pela fila
+    // (next/previous reais) - mesma tecnica de decodeEmbeddedCover/
+    // decodeAlbumArtFallback, so que titulo/artista ja vieram prontos de
+    // AlbumQueueLoader (nao precisa reconsultar).
+    private final class QueueCoverLoader extends AsyncTask<Void, Void, Bitmap> {
+        private final Uri mTargetUri;
+
+        QueueCoverLoader(Uri targetUri) {
+            mTargetUri = targetUri;
+        }
+
+        @Override
+        protected Bitmap doInBackground(Void... params) {
+            Bitmap cover = decodeEmbeddedCover(mContext, mTargetUri);
+            if (cover == null) {
+                ContentResolver resolver = mContext.getContentResolver();
+                long albumId = -1;
+                Cursor cursor = null;
+                try {
+                    cursor = resolver.query(mTargetUri,
+                            new String[]{AudioColumns.ALBUM_ID}, null, null, null);
+                    if (cursor != null && cursor.moveToFirst()) {
+                        albumId = cursor.getLong(0);
+                    }
+                } catch (Throwable ignored) {
+                } finally {
+                    if (cursor != null) cursor.close();
+                }
+                if (albumId >= 0) {
+                    cover = decodeAlbumArtFallback(resolver, albumId);
+                }
+            }
+            return cover;
+        }
+
+        @Override
+        protected void onPostExecute(Bitmap cover) {
+            // So aplica se ainda estivermos tocando essa mesma faixa (evita
+            // sobrescrever a capa se o usuario navegou de novo antes do
+            // carregamento anterior terminar).
+            if (!mTargetUri.equals(mCurrentPlayUri)) return;
+            mTrackCover = cover;
+            if (cover != null) {
+                mCoverView.setImageBitmap(cover);
+            } else {
+                mCoverView.setImageResource(R.drawable.ic_audio_cover_placeholder);
+            }
+        }
+    }
+
+    private String mTrackTitle = "";'''
+    new_after_removal = '''    private String mTrackTitle = "";'''
+    if content.count(old_album_queue_loader_and_queue_cover) != 1:
+        fail("Blocos AlbumQueueLoader/QueueCoverLoader não encontrados (ou "
+             "ambíguos) em MoviePlayer.java — verifique manualmente.")
+    content = content.replace(old_album_queue_loader_and_queue_cover, new_after_removal, 1)
+
+    # --- 2.8: substitui onNextRequested/onPreviousRequested/hasQueue/
+    # isRepeatAll/playQueueIndex por onTrackChanged/onPlaybackEndedWithNoQueue ---
+    old_next_prev_block = '''    // Below are notifications from MusicPlaybackService.QueueController.
+    // Fix (Player3D): antes, o app nao tinha fila/playlist real - "proxima"
+    // so fechava a tela (tratada como fim de reproducao) e "anterior" so
+    // reiniciava a faixa atual. Agora, quando ha uma fila carregada
+    // (AlbumQueueLoader encontrou outras faixas do mesmo album), next/
+    // previous navegam pra faixa real seguinte/anterior. Sem fila (album
+    // com 1 faixa so, ou faixa fora do MediaStore local), cai no
+    // comportamento antigo, honesto e minimo.
+    // Fix (Player3D): onNextRequested(fromUserAction) agora distingue POR
+    // QUE foi chamado (ver MusicPlaybackService.QueueController).
+    // fromUserAction=true (usuario clicou "proxima"/notificacao/MediaSession)
+    // NUNCA fecha a tela, mesmo sem fila carregada - so pausa, igual ao
+    // fim de fila sem repeat. fromUserAction=false (a faixa atual chegou
+    // ao fim tocando sozinha) preserva o unico caso em que fechar a tela
+    // e o comportamento correto: sem fila E sem repeat, chega ao fim,
+    // fecha.
+    @Override
+    public void onNextRequested(boolean fromUserAction) {
+        if (!hasQueue()) {
+            if (fromUserAction) {
+                if (mService != null) mService.pause();
+                mController.showPaused();
+            } else {
+                mController.showEnded();
+                onCompletion();
+            }
+            return;
+        }
+        int next = mQueueIndex + 1;
+        if (next >= mQueueUris.length) {
+            if (isRepeatAll()) {
+                next = 0;
+            } else {
+                // Fix (Player3D): fim da fila sem repeat NAO fecha mais a
+                // tela - so pausa na ultima faixa, com o botao de play de
+                // volta.
+                if (mService != null) mService.pause();
+                mController.showPaused();
+                return;
+            }
+        }
+        playQueueIndex(next);
+    }
+
+    @Override
+    public void onPreviousRequested() {
+        if (!hasQueue()) {
+            if (mService != null) mService.seekTo(0);
+            return;
+        }
+        int prev = mQueueIndex - 1;
+        if (prev < 0) {
+            if (isRepeatAll()) {
+                prev = mQueueUris.length - 1;
+            } else {
+                if (mService != null) mService.seekTo(0);
+                return;
+            }
+        }
+        playQueueIndex(prev);
+    }
+
+    private boolean hasQueue() {
+        return mQueueUris != null && mQueueIndex >= 0;
+    }
+
+    private boolean isRepeatAll() {
+        return mService != null
+                && mService.getRepeatMode() == MusicPlaybackService.RepeatMode.ALL;
+    }
+
+    // Fix (Player3D): toca de verdade a faixa em mQueueUris[index] - troca
+    // Uri/titulo/artista (ja vieram prontos de AlbumQueueLoader) e dispara
+    // o carregamento assincrono da capa dessa faixa (QueueCoverLoader).
+    private void playQueueIndex(int index) {
+        mQueueIndex = index;
+        mCurrentPlayUri = mQueueUris[index];
+        mTrackTitle = mQueueTitles[index] != null ? mQueueTitles[index] : "";
+        mTrackArtist = mQueueArtists[index] != null ? mQueueArtists[index] : "";
+        mTrackCover = null;
+        mCoverView.setImageResource(R.drawable.ic_audio_cover_placeholder);
+        new QueueCoverLoader(mCurrentPlayUri).execute();
+        playCurrentTrack(0);
+    }
+
+    public void onCompletion() {
+    }'''
+    new_next_prev_block = '''    // Fix (Player3D): a decisao de navegacao de fila (proxima/anterior)
+    // agora vive inteiramente dentro de MusicPlaybackService (ver
+    // comentario no topo de MusicPlaybackService.java) - MoviePlayer so
+    // reage as mudancas via estes 2 callbacks, nao decide mais nada
+    // sozinho sobre a fila.
+    @Override
+    public void onTrackChanged(Uri uri, String title, String artist, Bitmap cover) {
+        mCurrentPlayUri = uri;
+        mTrackTitle = title != null ? title : "";
+        mTrackArtist = artist != null ? artist : "";
+        mTrackCover = cover;
+        if (cover != null) {
+            mCoverView.setImageBitmap(cover);
+        } else {
+            mCoverView.setImageResource(R.drawable.ic_audio_cover_placeholder);
+        }
+    }
+
+    @Override
+    public void onPlaybackEndedWithNoQueue() {
+        mController.showEnded();
+        onCompletion();
+    }
+
+    public void onCompletion() {
+    }'''
+    if content.count(old_next_prev_block) != 1:
+        fail("Bloco onNextRequested/onPreviousRequested não encontrado (ou "
+             "ambíguo) em MoviePlayer.java — verifique manualmente.")
+    content = content.replace(old_next_prev_block, new_next_prev_block, 1)
+
+    # --- 2.9: agora imports podem ter ficado sem uso (ContentResolver,
+    # Cursor, AudioColumns, Media, ContentUris ainda sao usados em
+    # TrackMetadataLoader/decodeAlbumArtFallback - NAO remover). Mantidos
+    # de proposito: TrackMetadataLoader ainda usa ContentResolver/Cursor/
+    # AudioColumns/Media para resolver metadados da faixa ABERTA
+    # originalmente (nao a fila).
+
+    # --- 2.7b: comentário de decodeEmbeddedCover ainda cita QueueCoverLoader
+    # (que migrou pro Service) - ajusta o texto pra nao confundir leitura
+    # futura (não afeta compilação, é só comentário).
+    old_decode_comment = '''    // Extracao de capa (embutida no arquivo, com fallback para a capa do
+    // album via MediaStore) - promovida pra fora de TrackMetadataLoader
+    // (Fix Player3D) pra ser reutilizada tambem por QueueCoverLoader, que
+    // carrega a capa ao navegar pela fila real de next/previous. Mesma
+    // tecnica do Passo 1.5 (LocalAudio), so que parametrizada por
+    // Context/Uri em vez de depender de campos de uma unica faixa.
+    private static Bitmap decodeEmbeddedCover(Context context, Uri uri) {'''
+    new_decode_comment = '''    // Extracao de capa (embutida no arquivo, com fallback para a capa do
+    // album via MediaStore) - usada por TrackMetadataLoader para a capa
+    // da faixa com que a tela foi ABERTA originalmente. A navegacao de
+    // fila (next/previous) tem sua propria copia equivalente dentro de
+    // MusicPlaybackService (QueueCoverLoader), que carrega a capa das
+    // OUTRAS faixas do album sem depender desta classe.
+    private static Bitmap decodeEmbeddedCover(Context context, Uri uri) {'''
+    if content.count(old_decode_comment) != 1:
+        fail("Comentário de decodeEmbeddedCover não encontrado (ou "
+             "ambíguo) — verifique manualmente.")
+    content = content.replace(old_decode_comment, new_decode_comment, 1)
+
+    if MARKER not in content:
+        fail("Substituição falhou — marcador ausente após patch. Abortando "
+             "sem escrever.")
+
+    MOVIE_PLAYER.write_text(content, encoding="utf-8")
+    print("[2/2 MoviePlayer.java] OK — lógica de fila removida, agora reage "
+          "aos callbacks do Service.")
+
+
+def main():
+    if not PROJECT_ROOT.exists():
+        fail(f"Projeto não encontrado em {PROJECT_ROOT}. Rode de dentro de ~/Galeria3D.")
+
+    step_music_service()
+    print()
+    step_movie_player()
+
+    print()
+    print("Próximo passo:")
+    print("  cd ~/Galeria3D && ./gradlew assembleDebug")
+
+
+if __name__ == "__main__":
+    main()

@@ -84,8 +84,12 @@ public class MusicPlaybackService extends Service
      * botoes da propria tela de reproducao - e a mesma fonte de verdade
      * descrita no item 9.3 da especificacao.
      */
+    // Fix (Player3D): onNextRequested() agora informa QUEM pediu a
+    // proxima faixa - true = usuario (clique/notificacao/MediaSession),
+    // false = fim natural da faixa atual (MediaPlayer.OnCompletionListener).
+    // So o caso "false, sem fila, sem repeat" deve fechar a tela.
     public interface QueueController {
-        void onNextRequested();
+        void onNextRequested(boolean fromUserAction);
         void onPreviousRequested();
     }
 
@@ -131,7 +135,7 @@ public class MusicPlaybackService extends Service
 
             @Override
             public void onSkipToNext() {
-                requestNext();
+                requestNext(true);
             }
 
             @Override
@@ -167,7 +171,7 @@ public class MusicPlaybackService extends Service
                 togglePlayPause();
                 break;
             case ACTION_NEXT:
-                requestNext();
+                requestNext(true);
                 break;
             case ACTION_PREVIOUS:
                 requestPrevious();
@@ -270,7 +274,10 @@ public class MusicPlaybackService extends Service
         }
         // Repetir todas ou tocar a proxima faixa da fila e decisao de quem
         // controla a fila (MoviePlayer) - o Service so avisa que acabou.
-        requestNext();
+        // Fix (Player3D): fromUserAction=false - fim natural da faixa,
+        // nao pedido do usuario. So esse caminho pode fechar a tela
+        // (MoviePlayer.onNextRequested decide).
+        requestNext(false);
     }
 
     @Override
@@ -358,9 +365,9 @@ public class MusicPlaybackService extends Service
         }
     }
 
-    private void requestNext() {
+    private void requestNext(boolean fromUserAction) {
         if (mQueueController != null) {
-            mQueueController.onNextRequested();
+            mQueueController.onNextRequested(fromUserAction);
         }
     }
 
