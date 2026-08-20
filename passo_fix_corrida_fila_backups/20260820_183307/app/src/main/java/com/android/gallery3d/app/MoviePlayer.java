@@ -397,26 +397,15 @@ public class MoviePlayer implements
 
     // So chama service.playTrack(...) quando o bind ao Service E o carregamento
     // de metadados/capa (ambos assincronos, ver construtor) tiverem terminado.
-    //
-    // Fix (Player3D - corrida da fila): o pedido de fila (requestQueueLoad)
-    // NAO e mais feito aqui. Antes, ele rodava neste ponto, ou seja, ANTES
-    // do dialogo "retomar de onde parou" (showResumeDialog) ser respondido
-    // pelo usuario. O AlbumQueueLoader (assincrono, dentro do Service) so
-    // aplica o resultado se Service.mCurrentUri ja for igual a faixa
-    // pedida - e mCurrentUri so e definido dentro de Service.playTrack().
-    // Como a consulta ao MediaStore terminava rapido (poucos ms) e o
-    // dialogo so avanca quando o usuario toca em um botao (podem ser
-    // segundos depois), o resultado da fila chegava com mCurrentUri ainda
-    // nulo, era descartado silenciosamente, e a fila ficava vazia pro
-    // resto da sessao (mQueueRequested ja true, nunca mais tentava de
-    // novo) - dai o botao de avancar/anterior so pausar/reiniciar, tanto
-    // na tela quanto na notificacao, e a faixa nao avancar sozinha ao
-    // terminar. O pedido agora e feito em playCurrentTrack(), logo APOS
-    // chamar service.playTrack() - nesse ponto mCurrentUri ja foi
-    // atribuido de forma sincrona, entao a corrida deixa de existir,
-    // não importa por qual caminho a reproducao comecou (direto, giro de
-    // tela, ou os dois botoes do dialogo de retomar).
     private void maybeStartPlayback() {
+        // Fix (Player3D): o pedido de fila so depende de Service vinculado
+        // + albumId conhecido (nao do inicio da reproducao em si) - roda
+        // assim que os dois estiverem prontos, uma unica vez.
+        if (mServiceBound && mMetadataLoaded && !mQueueRequested) {
+            mQueueRequested = true;
+            requestQueueLoad(mPendingAlbumId);
+        }
+
         if (mStarted || !mServiceBound || !mMetadataLoaded) return;
         mStarted = true;
 
@@ -573,16 +562,6 @@ public class MoviePlayer implements
         mHandler.postDelayed(mPlayingChecker, 250);
         if (mService != null) {
             mService.playTrack(mCurrentPlayUri, mTrackTitle, mTrackArtist, mTrackCover);
-            // Fix (Player3D - corrida da fila): pedido de fila feito SO
-            // depois de service.playTrack() acima, nunca antes - ver
-            // comentario em maybeStartPlayback(). playCurrentTrack() so e
-            // chamado uma vez na vida deste MoviePlayer (direto, apos giro
-            // de tela, ou pelos botoes do dialogo de retomar), entao
-            // mQueueRequested garante um unico pedido mesmo assim.
-            if (!mQueueRequested) {
-                mQueueRequested = true;
-                requestQueueLoad(mPendingAlbumId);
-            }
         }
     }
 
