@@ -123,12 +123,9 @@ public class AlbumSlotRenderer extends AbstractSlotRenderer {
             renderRequestFlags |= SlotView.RENDER_MORE_FRAME;
         }
 
-        // Fix (Player3D): drawVideoOverlay() desenhava o circulo preto com
-        // icone de play sobre a capa - resquicio da era em que este app era
-        // uma galeria de fotos/videos. Todo item aqui e uma faixa de audio
-        // (MEDIA_TYPE_VIDEO e reaproveitado internamente para audio, ver
-        // LocalAudio.getMediaType()), entao esse overlay nao faz mais
-        // sentido nenhum - a capa fica limpa, sem circulo de play.
+        if (entry.mediaType == MediaObject.MEDIA_TYPE_VIDEO) {
+            drawVideoOverlay(canvas, width, height);
+        }
 
         if (entry.isPanorama) {
             drawPanoramaIcon(canvas, width, height);

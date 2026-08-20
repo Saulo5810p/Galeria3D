@@ -351,10 +351,6 @@ public class TrimVideo extends Activity implements
     }
 
     @Override
-    public void onEditCover() {
-    }
-
-    @Override
     public void onCompletion(MediaPlayer mp) {
         mController.showEnded();
     }

@@ -33,8 +33,6 @@ public interface ControllerOverlay {
     void onNext();
     void onToggleRepeatAll();
     void onToggleRepeatOne();
-    // Passo 4.3 (Player3D): botao de editar a capa da faixa atual.
-    void onEditCover();
   }
 
   void setListener(Listener listener);

@@ -21,7 +21,6 @@ import android.app.AlertDialog;
 import android.content.BroadcastReceiver;
 import android.content.ComponentName;
 import android.content.ContentResolver;
-import android.content.ContentUris;
 import android.content.Context;
 import android.content.DialogInterface;
 import android.content.DialogInterface.OnCancelListener;
@@ -42,13 +41,11 @@ import android.os.Handler;
 import android.os.IBinder;
 import android.provider.MediaStore.Audio.Albums;
 import android.provider.MediaStore.Audio.AudioColumns;
-import android.provider.MediaStore.Audio.Media;
 import android.view.KeyEvent;
 import android.view.MotionEvent;
 import android.view.View;
 import android.view.ViewGroup;
 import android.widget.ImageView;
-import android.widget.Toast;
 
 import com.android.gallery3d.R;
 import com.android.gallery3d.common.ApiHelper;
@@ -60,9 +57,6 @@ import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
 import java.io.DataInputStream;
 import java.io.DataOutputStream;
-import java.io.File;
-import java.io.FileOutputStream;
-import java.io.IOException;
 
 /*
  * Passo 4.1 (Player3D) - motor de renderizacao trocado de VideoView para
@@ -74,13 +68,12 @@ import java.io.IOException;
  * (proxima/anterior faixa), que e a mesma fonte de verdade usada pela
  * notificacao e pela tela de bloqueio (item 9.3 da especificacao).
  *
- * Fix (Player3D): o app agora tem uma fila real, carregada de forma
- * assincrona (AlbumQueueLoader) com as outras faixas do MESMO album da
- * faixa aberta. onNextRequested()/onPreviousRequested() navegam pra
- * faixa real seguinte/anterior quando essa fila existe; sem fila (album
- * com 1 faixa so, ou faixa fora do MediaStore local), cai no
- * comportamento antigo, honesto e minimo: "proxima" ao fim da faixa ==
- * fim da reproducao, "anterior" volta pro inicio da faixa atual.
+ * O app ainda nao tem uma fila/playlist real (isso e trabalho do Passo 4.2
+ * em diante, quando os botoes de Proxima/Anterior existirem de verdade).
+ * Ate la, onNextRequested()/onPreviousRequested() tem um comportamento
+ * honesto e minimo: "proxima" ao fim da faixa == fim da reproducao (mesmo
+ * comportamento que o antigo onCompletion() de video tinha), e "anterior"
+ * volta para o inicio da faixa atual.
  */
 public class MoviePlayer implements
         MusicPlaybackService.Callback, MusicPlaybackService.QueueController,
@@ -131,24 +124,6 @@ public class MoviePlayer implements
     // verdade (retomar de um bookmark, ou retomar apos recriacao da
     // Activity). 0 = comecar do inicio, sem seek pendente.
     private int mPendingSeekPositionMs;
-
-    // Fix (Player3D): fila real das outras faixas do MESMO album da faixa
-    // aberta. Antes disso existir, "proxima" so fechava a tela (era
-    // tratado como fim de reproducao) e "anterior" so reiniciava a faixa
-    // atual - nenhum dos dois navegava de verdade. Carregada de forma
-    // assincrona por AlbumQueueLoader assim que sabemos o albumId (depois
-    // que TrackMetadataLoader termina). mQueueIndex == -1 significa "fila
-    // ainda nao carregada, ou faixa sem album/fora de MediaStore local" -
-    // nesse caso next/previous caem no comportamento antigo, honesto e
-    // minimo (fim de reproducao / reiniciar faixa atual).
-    private Uri[] mQueueUris;
-    private String[] mQueueTitles;
-    private String[] mQueueArtists;
-    private int mQueueIndex = -1;
-    // Uri da faixa TOCANDO agora - pode mudar ao navegar pela fila. mUri
-    // (acima) continua sendo a faixa com que a tela foi aberta, usada so
-    // para o bookmark de "retomar de onde parou" do fluxo original.
-    private Uri mCurrentPlayUri;
 
     private long mResumeableTime = Long.MAX_VALUE;
     private int mVideoPosition = 0;
@@ -206,7 +181,6 @@ public class MoviePlayer implements
         mCoverView.setScaleType(ImageView.ScaleType.CENTER_CROP);
         mBookmarker = new Bookmarker(movieActivity);
         mUri = videoUri;
-        mCurrentPlayUri = videoUri;
 
         mController = new MovieControllerOverlay(mContext);
         ((ViewGroup)rootView).addView(mController.getView());
@@ -268,7 +242,6 @@ public class MoviePlayer implements
             String title;
             String artist;
             Bitmap cover;
-            long albumId = -1;
         }
 
         @Override
@@ -293,12 +266,71 @@ public class MoviePlayer implements
                 if (cursor != null) cursor.close();
             }
 
-            result.albumId = albumId;
-            result.cover = decodeEmbeddedCover(mContext, mUri);
+            result.cover = decodeEmbeddedCover();
             if (result.cover == null && albumId >= 0) {
                 result.cover = decodeAlbumArtFallback(resolver, albumId);
             }
             return result;
+        }
+
+        private Bitmap decodeEmbeddedCover() {
+            MediaMetadataRetriever retriever = new MediaMetadataRetriever();
+            try {
+                retriever.setDataSource(mContext, mUri);
+                byte[] embedded = retriever.getEmbeddedPicture();
+                if (embedded == null) return null;
+                return BitmapFactory.decodeByteArray(embedded, 0, embedded.length);
+            } catch (OutOfMemoryError e) {
+                Log.w(TAG, "OOM decodificando capa embutida de " + mUri);
+                return null;
+            } catch (Throwable t) {
+                Log.w(TAG, "sem capa embutida para " + mUri);
+                return null;
+            } finally {
+                try {
+                    retriever.release();
+                } catch (Throwable ignored) {
+                }
+            }
+        }
+
+        @TargetApi(Build.VERSION_CODES.Q)
+        private Bitmap decodeAlbumArtFallback(ContentResolver resolver, long albumId) {
+            try {
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+                    Uri albumArtUri = Albums.EXTERNAL_CONTENT_URI.buildUpon()
+                            .appendPath(String.valueOf(albumId)).build();
+                    return resolver.loadThumbnail(albumArtUri,
+                            new android.util.Size(COVER_TARGET_SIZE, COVER_TARGET_SIZE), null);
+                }
+                return decodeAlbumArtLegacy(resolver, albumId);
+            } catch (OutOfMemoryError e) {
+                Log.w(TAG, "OOM decodificando capa do album " + albumId);
+                return null;
+            } catch (Throwable t) {
+                Log.w(TAG, "sem capa de album para " + albumId);
+                return null;
+            }
+        }
+
+        // Pre-Android 10: MediaStore.Audio.Albums.ALBUM_ART e uma coluna de
+        // caminho de arquivo apontando direto pra capa em cache no disco.
+        private Bitmap decodeAlbumArtLegacy(ContentResolver resolver, long albumId) {
+            String[] projection = {Albums.ALBUM_ART};
+            Cursor cursor = resolver.query(Albums.EXTERNAL_CONTENT_URI, projection,
+                    Albums._ID + "=?", new String[]{String.valueOf(albumId)}, null);
+            if (cursor == null) return null;
+            try {
+                if (cursor.moveToFirst()) {
+                    String path = cursor.getString(0);
+                    if (path != null) {
+                        return BitmapFactory.decodeFile(path);
+                    }
+                }
+            } finally {
+                cursor.close();
+            }
+            return null;
         }
 
         @Override
@@ -312,213 +344,7 @@ public class MoviePlayer implements
                 mCoverView.setImageResource(R.drawable.ic_audio_cover_placeholder);
             }
             mMetadataLoaded = true;
-            // Fix (Player3D): assim que sabemos o albumId, carrega a fila
-            // real das outras faixas do mesmo album em segundo plano, pra
-            // next/previous poderem navegar de verdade.
-            if (result.albumId >= 0) {
-                new AlbumQueueLoader(result.albumId).execute();
-            }
             maybeStartPlayback();
-        }
-    }
-
-    // Extracao de capa (embutida no arquivo, com fallback para a capa do
-    // album via MediaStore) - promovida pra fora de TrackMetadataLoader
-    // (Fix Player3D) pra ser reutilizada tambem por QueueCoverLoader, que
-    // carrega a capa ao navegar pela fila real de next/previous. Mesma
-    // tecnica do Passo 1.5 (LocalAudio), so que parametrizada por
-    // Context/Uri em vez de depender de campos de uma unica faixa.
-    private static Bitmap decodeEmbeddedCover(Context context, Uri uri) {
-        MediaMetadataRetriever retriever = new MediaMetadataRetriever();
-        try {
-            retriever.setDataSource(context, uri);
-            byte[] embedded = retriever.getEmbeddedPicture();
-            if (embedded == null) return null;
-            return BitmapFactory.decodeByteArray(embedded, 0, embedded.length);
-        } catch (OutOfMemoryError e) {
-            Log.w(TAG, "OOM decodificando capa embutida de " + uri);
-            return null;
-        } catch (Throwable t) {
-            Log.w(TAG, "sem capa embutida para " + uri);
-            return null;
-        } finally {
-            try {
-                retriever.release();
-            } catch (Throwable ignored) {
-            }
-        }
-    }
-
-    @TargetApi(Build.VERSION_CODES.Q)
-    private static Bitmap decodeAlbumArtFallback(ContentResolver resolver, long albumId) {
-        try {
-            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
-                Uri albumArtUri = Albums.EXTERNAL_CONTENT_URI.buildUpon()
-                        .appendPath(String.valueOf(albumId)).build();
-                return resolver.loadThumbnail(albumArtUri,
-                        new android.util.Size(COVER_TARGET_SIZE, COVER_TARGET_SIZE), null);
-            }
-            return decodeAlbumArtLegacy(resolver, albumId);
-        } catch (OutOfMemoryError e) {
-            Log.w(TAG, "OOM decodificando capa do album " + albumId);
-            return null;
-        } catch (Throwable t) {
-            Log.w(TAG, "sem capa de album para " + albumId);
-            return null;
-        }
-    }
-
-    // Pre-Android 10: MediaStore.Audio.Albums.ALBUM_ART e uma coluna de
-    // caminho de arquivo apontando direto pra capa em cache no disco.
-    private static Bitmap decodeAlbumArtLegacy(ContentResolver resolver, long albumId) {
-        String[] projection = {Albums.ALBUM_ART};
-        Cursor cursor = resolver.query(Albums.EXTERNAL_CONTENT_URI, projection,
-                Albums._ID + "=?", new String[]{String.valueOf(albumId)}, null);
-        if (cursor == null) return null;
-        try {
-            if (cursor.moveToFirst()) {
-                String path = cursor.getString(0);
-                if (path != null) {
-                    return BitmapFactory.decodeFile(path);
-                }
-            }
-        } finally {
-            cursor.close();
-        }
-        return null;
-    }
-
-    // Fix (Player3D): carrega as outras faixas do MESMO album (mesmo
-    // ALBUM_ID da faixa aberta) pra next/previous poderem navegar de
-    // verdade dentro do album, em vez de fechar a tela (next) ou so
-    // reiniciar a faixa atual (previous). Ordenada por numero da faixa,
-    // com titulo como desempate - mesmo criterio usado pra playlists de
-    // album em qualquer tocador de musica.
-    private final class AlbumQueueLoader extends AsyncTask<Void, Void, AlbumQueueLoader.Result> {
-        private final long mAlbumId;
-
-        AlbumQueueLoader(long albumId) {
-            mAlbumId = albumId;
-        }
-
-        final class Result {
-            Uri[] uris;
-            String[] titles;
-            String[] artists;
-            int currentIndex = -1;
-        }
-
-        @Override
-        protected Result doInBackground(Void... params) {
-            Result result = new Result();
-            ContentResolver resolver = mContext.getContentResolver();
-            String[] projection = {
-                    AudioColumns._ID, AudioColumns.TITLE, AudioColumns.ARTIST,
-            };
-            String selection = AudioColumns.ALBUM_ID + "=?";
-            String[] selectionArgs = {String.valueOf(mAlbumId)};
-            String sortOrder = AudioColumns.TRACK + " ASC, " + AudioColumns.TITLE + " ASC";
-
-            long currentId = -1;
-            try {
-                currentId = ContentUris.parseId(mCurrentPlayUri);
-            } catch (Throwable ignored) {
-                // Uri sem _id numerico no final (ex.: content:// vindo de
-                // outro provider) - sem como comparar, a fila fica vazia e
-                // o comportamento antigo (sem navegacao real) e mantido.
-            }
-
-            Cursor cursor = null;
-            try {
-                cursor = resolver.query(Media.EXTERNAL_CONTENT_URI, projection,
-                        selection, selectionArgs, sortOrder);
-                if (cursor != null && cursor.getCount() > 0) {
-                    int count = cursor.getCount();
-                    result.uris = new Uri[count];
-                    result.titles = new String[count];
-                    result.artists = new String[count];
-                    int i = 0;
-                    while (cursor.moveToNext()) {
-                        long id = cursor.getLong(0);
-                        result.uris[i] = ContentUris.withAppendedId(Media.EXTERNAL_CONTENT_URI, id);
-                        result.titles[i] = cursor.getString(1);
-                        result.artists[i] = cursor.getString(2);
-                        if (id == currentId) {
-                            result.currentIndex = i;
-                        }
-                        i++;
-                    }
-                }
-            } catch (Throwable t) {
-                Log.w(TAG, "falha ao carregar fila do album " + mAlbumId, t);
-            } finally {
-                if (cursor != null) cursor.close();
-            }
-            return result;
-        }
-
-        @Override
-        protected void onPostExecute(Result result) {
-            if (result.uris == null || result.uris.length <= 1 || result.currentIndex < 0) {
-                // Album com 1 faixa so (ou faixa nao reencontrada na
-                // consulta) - nao ha o que navegar, fila fica vazia e
-                // hasQueue() continua reportando false.
-                return;
-            }
-            mQueueUris = result.uris;
-            mQueueTitles = result.titles;
-            mQueueArtists = result.artists;
-            mQueueIndex = result.currentIndex;
-        }
-    }
-
-    // Fix (Player3D): carrega a capa da faixa ao navegar pela fila
-    // (next/previous reais) - mesma tecnica de decodeEmbeddedCover/
-    // decodeAlbumArtFallback, so que titulo/artista ja vieram prontos de
-    // AlbumQueueLoader (nao precisa reconsultar).
-    private final class QueueCoverLoader extends AsyncTask<Void, Void, Bitmap> {
-        private final Uri mTargetUri;
-
-        QueueCoverLoader(Uri targetUri) {
-            mTargetUri = targetUri;
-        }
-
-        @Override
-        protected Bitmap doInBackground(Void... params) {
-            Bitmap cover = decodeEmbeddedCover(mContext, mTargetUri);
-            if (cover == null) {
-                ContentResolver resolver = mContext.getContentResolver();
-                long albumId = -1;
-                Cursor cursor = null;
-                try {
-                    cursor = resolver.query(mTargetUri,
-                            new String[]{AudioColumns.ALBUM_ID}, null, null, null);
-                    if (cursor != null && cursor.moveToFirst()) {
-                        albumId = cursor.getLong(0);
-                    }
-                } catch (Throwable ignored) {
-                } finally {
-                    if (cursor != null) cursor.close();
-                }
-                if (albumId >= 0) {
-                    cover = decodeAlbumArtFallback(resolver, albumId);
-                }
-            }
-            return cover;
-        }
-
-        @Override
-        protected void onPostExecute(Bitmap cover) {
-            // So aplica se ainda estivermos tocando essa mesma faixa (evita
-            // sobrescrever a capa se o usuario navegou de novo antes do
-            // carregamento anterior terminar).
-            if (!mTargetUri.equals(mCurrentPlayUri)) return;
-            mTrackCover = cover;
-            if (cover != null) {
-                mCoverView.setImageBitmap(cover);
-            } else {
-                mCoverView.setImageResource(R.drawable.ic_audio_cover_placeholder);
-            }
         }
     }
 
@@ -623,11 +449,7 @@ public class MoviePlayer implements
         mHandler.removeCallbacksAndMessages(null);
         if (mService != null) {
             mVideoPosition = mService.getCurrentPosition();
-            // Fix (Player3D): salva o bookmark contra a faixa que esta
-            // TOCANDO de verdade agora (mCurrentPlayUri pode ter mudado se
-            // o usuario navegou pela fila), nao a faixa original com que a
-            // tela foi aberta.
-            mBookmarker.setBookmark(mCurrentPlayUri, mVideoPosition, mService.getDuration());
+            mBookmarker.setBookmark(mUri, mVideoPosition, mService.getDuration());
         }
         mResumeableTime = System.currentTimeMillis() + RESUMEABLE_TIMEOUT;
     }
@@ -685,7 +507,7 @@ public class MoviePlayer implements
         mHandler.removeCallbacks(mPlayingChecker);
         mHandler.postDelayed(mPlayingChecker, 250);
         if (mService != null) {
-            mService.playTrack(mCurrentPlayUri, mTrackTitle, mTrackArtist, mTrackCover);
+            mService.playTrack(mUri, mTrackTitle, mTrackArtist, mTrackCover);
         }
     }
 
@@ -732,128 +554,24 @@ public class MoviePlayer implements
         mController.showErrorMessage("");
     }
 
-    // Below are notifications from MusicPlaybackService.QueueController.
-    // Fix (Player3D): antes, o app nao tinha fila/playlist real - "proxima"
-    // so fechava a tela (tratada como fim de reproducao) e "anterior" so
-    // reiniciava a faixa atual. Agora, quando ha uma fila carregada
-    // (AlbumQueueLoader encontrou outras faixas do mesmo album), next/
-    // previous navegam pra faixa real seguinte/anterior. Sem fila (album
-    // com 1 faixa so, ou faixa fora do MediaStore local), cai no
-    // comportamento antigo, honesto e minimo.
+    // Below are notifications from MusicPlaybackService.QueueController -
+    // ainda nao existe fila/playlist real no app (isso chega a partir do
+    // Passo 4.2/5). Ate la, comportamento minimo e honesto: fim da faixa
+    // unica = fim da reproducao; "anterior" volta ao inicio da faixa atual.
     @Override
     public void onNextRequested() {
-        if (!hasQueue()) {
-            mController.showEnded();
-            onCompletion();
-            return;
-        }
-        int next = mQueueIndex + 1;
-        if (next >= mQueueUris.length) {
-            if (isRepeatAll()) {
-                next = 0;
-            } else {
-                // Fix (Player3D): fim da fila sem repeat NAO fecha mais a
-                // tela - so pausa na ultima faixa, com o botao de play de
-                // volta.
-                if (mService != null) mService.pause();
-                mController.showPaused();
-                return;
-            }
-        }
-        playQueueIndex(next);
+        mController.showEnded();
+        onCompletion();
     }
 
     @Override
     public void onPreviousRequested() {
-        if (!hasQueue()) {
-            if (mService != null) mService.seekTo(0);
-            return;
+        if (mService != null) {
+            mService.seekTo(0);
         }
-        int prev = mQueueIndex - 1;
-        if (prev < 0) {
-            if (isRepeatAll()) {
-                prev = mQueueUris.length - 1;
-            } else {
-                if (mService != null) mService.seekTo(0);
-                return;
-            }
-        }
-        playQueueIndex(prev);
-    }
-
-    private boolean hasQueue() {
-        return mQueueUris != null && mQueueIndex >= 0;
-    }
-
-    private boolean isRepeatAll() {
-        return mService != null
-                && mService.getRepeatMode() == MusicPlaybackService.RepeatMode.ALL;
-    }
-
-    // Fix (Player3D): toca de verdade a faixa em mQueueUris[index] - troca
-    // Uri/titulo/artista (ja vieram prontos de AlbumQueueLoader) e dispara
-    // o carregamento assincrono da capa dessa faixa (QueueCoverLoader).
-    private void playQueueIndex(int index) {
-        mQueueIndex = index;
-        mCurrentPlayUri = mQueueUris[index];
-        mTrackTitle = mQueueTitles[index] != null ? mQueueTitles[index] : "";
-        mTrackArtist = mQueueArtists[index] != null ? mQueueArtists[index] : "";
-        mTrackCover = null;
-        mCoverView.setImageResource(R.drawable.ic_audio_cover_placeholder);
-        new QueueCoverLoader(mCurrentPlayUri).execute();
-        playCurrentTrack(0);
     }
 
     public void onCompletion() {
-    }
-
-    // Passo 4.3 (Player3D): editar a capa da faixa atual. Reusa a capa JA
-    // decodificada em memoria (mTrackCover, vinda de TrackMetadataLoader ou
-    // QueueCoverLoader) - nao depende de LocalAudio/DataManager (que exigem
-    // um caminho de arquivo local resolvido, infraestrutura que MovieActivity
-    // nao tem). Salva a capa num arquivo temporario de cache, expoe via o
-    // FileProvider ja configurado no projeto, e abre o mesmo editor de
-    // fotos (FilterShowActivity) que PhotoPage.launchPhotoEditor() usa.
-    @Override
-    public void onEditCover() {
-        if (mTrackCover == null) {
-            Toast.makeText(mActivityContext, R.string.player3d_no_cover_to_edit,
-                    Toast.LENGTH_SHORT).show();
-            return;
-        }
-        try {
-            File cacheDir = new File(mContext.getCacheDir(), "audio_covers");
-            if (!cacheDir.exists() && !cacheDir.mkdirs()) {
-                Log.w(TAG, "nao foi possivel criar cache dir para capa: " + cacheDir);
-                Toast.makeText(mActivityContext, R.string.player3d_no_cover_to_edit,
-                        Toast.LENGTH_SHORT).show();
-                return;
-            }
-            File coverFile = new File(cacheDir,
-                    "cover_" + Math.abs(mCurrentPlayUri.hashCode()) + ".jpg");
-            FileOutputStream out = new FileOutputStream(coverFile);
-            try {
-                mTrackCover.compress(Bitmap.CompressFormat.JPEG, 92, out);
-            } finally {
-                out.close();
-            }
-            Uri coverUri = androidx.core.content.FileProvider.getUriForFile(
-                    mContext, mContext.getPackageName() + ".provider", coverFile);
-
-            Intent intent = new Intent(PhotoPage.ACTION_NEXTGEN_EDIT);
-            intent.setDataAndType(coverUri, "image/jpeg");
-            intent.addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION);
-            if (mActivityContext.getPackageManager()
-                    .queryIntentActivities(intent,
-                            android.content.pm.PackageManager.MATCH_DEFAULT_ONLY).isEmpty()) {
-                intent.setAction(Intent.ACTION_EDIT);
-            }
-            mActivityContext.startActivity(Intent.createChooser(intent, null));
-        } catch (IOException e) {
-            Log.w(TAG, "falha ao salvar capa temporaria para edicao", e);
-            Toast.makeText(mActivityContext, R.string.player3d_no_cover_to_edit,
-                    Toast.LENGTH_SHORT).show();
-        }
     }
 
     // Below are notifications from ControllerOverlay

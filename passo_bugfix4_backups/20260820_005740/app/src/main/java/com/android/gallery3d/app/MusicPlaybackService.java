@@ -431,27 +431,14 @@ public class MusicPlaybackService extends Service
         }
     }
 
-    // Fix (Player3D): request code baseado em action.hashCode() e fragil -
-    // hashCode nao tem garantia de unicidade nem de estabilidade entre
-    // execucoes/versoes de String, o que podia fazer PendingIntents de
-    // botoes diferentes colidirem no cache do sistema e alguns botoes da
-    // notificacao pararem de responder. Cada botao agora tem um request
-    // code fixo e unico, igual ao padrao recomendado pela documentacao do
-    // Android pra PendingIntents de notificacao com multiplas acoes.
-    private static final int REQUEST_CODE_REPEAT_ALL = 101;
-    private static final int REQUEST_CODE_PREVIOUS = 102;
-    private static final int REQUEST_CODE_PLAY_PAUSE = 103;
-    private static final int REQUEST_CODE_NEXT = 104;
-    private static final int REQUEST_CODE_REPEAT_ONE = 105;
-
-    private PendingIntent actionPendingIntent(String action, int requestCode) {
+    private PendingIntent actionPendingIntent(String action) {
         Intent intent = new Intent(this, MusicPlaybackService.class);
         intent.setAction(action);
         int flags = PendingIntent.FLAG_UPDATE_CURRENT;
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
             flags |= PendingIntent.FLAG_IMMUTABLE;
         }
-        return PendingIntent.getService(this, requestCode, intent, flags);
+        return PendingIntent.getService(this, action.hashCode(), intent, flags);
     }
 
     private Notification buildNotification() {
@@ -463,27 +450,27 @@ public class MusicPlaybackService extends Service
         Notification.Action repeatAll = new Notification.Action.Builder(
                 R.drawable.ic_vidcontrol_repeat_all,
                 getString(R.string.player3d_repeat_all),
-                actionPendingIntent(ACTION_TOGGLE_REPEAT_ALL, REQUEST_CODE_REPEAT_ALL)).build();
+                actionPendingIntent(ACTION_TOGGLE_REPEAT_ALL)).build();
 
         Notification.Action previous = new Notification.Action.Builder(
                 R.drawable.ic_vidcontrol_previous,
                 getString(R.string.player3d_previous),
-                actionPendingIntent(ACTION_PREVIOUS, REQUEST_CODE_PREVIOUS)).build();
+                actionPendingIntent(ACTION_PREVIOUS)).build();
 
         Notification.Action playPause = new Notification.Action.Builder(
                 playing ? R.drawable.ic_vidcontrol_pause : R.drawable.ic_vidcontrol_play,
                 getString(playing ? R.string.player3d_pause : R.string.player3d_play),
-                actionPendingIntent(ACTION_PLAY_PAUSE, REQUEST_CODE_PLAY_PAUSE)).build();
+                actionPendingIntent(ACTION_PLAY_PAUSE)).build();
 
         Notification.Action next = new Notification.Action.Builder(
                 R.drawable.ic_vidcontrol_next,
                 getString(R.string.player3d_next),
-                actionPendingIntent(ACTION_NEXT, REQUEST_CODE_NEXT)).build();
+                actionPendingIntent(ACTION_NEXT)).build();
 
         Notification.Action repeatOne = new Notification.Action.Builder(
                 R.drawable.ic_vidcontrol_repeat_one,
                 getString(R.string.player3d_repeat_one),
-                actionPendingIntent(ACTION_TOGGLE_REPEAT_ONE, REQUEST_CODE_REPEAT_ONE)).build();
+                actionPendingIntent(ACTION_TOGGLE_REPEAT_ONE)).build();
 
         Notification.MediaStyle style = new Notification.MediaStyle()
                 .setMediaSession(mMediaSession.getSessionToken())
