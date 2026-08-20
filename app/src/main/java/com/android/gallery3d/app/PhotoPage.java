@@ -1218,7 +1218,15 @@ public abstract class PhotoPage extends ActivityState implements
                     .setDataAndType(uri, "audio/*")
                     .putExtra(Intent.EXTRA_TITLE, title)
                     .putExtra(MovieActivity.KEY_TREAT_UP_AS_BACK, true);
-            activity.startActivityForResult(intent, REQUEST_PLAY_VIDEO);
+                    // Fix (Player3D): a tela de reproducao NUNCA deve fechar
+        // sozinha por causa do mecanismo generico de
+        // EXTRA_FINISH_ON_COMPLETION do MovieActivity (que por
+        // padrao e true quando ausente) - pause/next/previous nao
+        // podem fechar a tela. Quem decide fechar (ou nao) e o
+        // MoviePlayer, de forma explicita, no unico caso correto
+        // (fim natural da faixa, sem fila, sem repeat).
+        intent.putExtra(android.provider.MediaStore.EXTRA_FINISH_ON_COMPLETION, false);
+        activity.startActivityForResult(intent, REQUEST_PLAY_VIDEO);
         } catch (ActivityNotFoundException e) {
             Toast.makeText(activity, activity.getString(R.string.video_err),
                     Toast.LENGTH_SHORT).show();

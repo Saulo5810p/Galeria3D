@@ -915,12 +915,11 @@ public class PhotoView extends GLView {
         canvas.fillRect(r.left, r.top, r.width(), r.height(), mPlaceholderColor);
     }
 
-    // Fix (Player3D): app nao tem mais video de verdade (toda faixa de audio e
-    // MEDIA_TYPE_VIDEO internamente, decisao do Passo 1.4) - o icone
-    // preto de play sobreposto na capa nunca deve ser desenhado. Corpo
-    // esvaziado de proposito (chamadas existentes em outros pontos
-    // deste arquivo continuam compilando, sem efeito visual algum).
+    // Draw the video play icon (in the place where the spinner was)
     private void drawVideoPlayIcon(GLCanvas canvas, int side) {
+        int s = side / ICON_RATIO;
+        // Draw the video play icon at the center
+        mVideoPlayIcon.draw(canvas, -s / 2, -s / 2, s, s);
     }
 
     // Draw the "no thumbnail" message

@@ -740,24 +740,11 @@ public class MoviePlayer implements
     // previous navegam pra faixa real seguinte/anterior. Sem fila (album
     // com 1 faixa so, ou faixa fora do MediaStore local), cai no
     // comportamento antigo, honesto e minimo.
-    // Fix (Player3D): onNextRequested(fromUserAction) agora distingue POR
-    // QUE foi chamado (ver MusicPlaybackService.QueueController).
-    // fromUserAction=true (usuario clicou "proxima"/notificacao/MediaSession)
-    // NUNCA fecha a tela, mesmo sem fila carregada - so pausa, igual ao
-    // fim de fila sem repeat. fromUserAction=false (a faixa atual chegou
-    // ao fim tocando sozinha) preserva o unico caso em que fechar a tela
-    // e o comportamento correto: sem fila E sem repeat, chega ao fim,
-    // fecha.
     @Override
-    public void onNextRequested(boolean fromUserAction) {
+    public void onNextRequested() {
         if (!hasQueue()) {
-            if (fromUserAction) {
-                if (mService != null) mService.pause();
-                mController.showPaused();
-            } else {
-                mController.showEnded();
-                onCompletion();
-            }
+            mController.showEnded();
+            onCompletion();
             return;
         }
         int next = mQueueIndex + 1;
