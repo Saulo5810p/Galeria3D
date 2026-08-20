@@ -128,11 +128,14 @@ public class MoviePlayer implements
     private boolean mServiceBound;
     private boolean mMetadataLoaded;
     private boolean mStarted;
-    // Fix (Player3D): albumId resolvido por TrackMetadataLoader, guardado
-    // ate o Service estar vinculado para podermos pedir loadQueueForAlbum()
-    // (as duas tasks assincronas do construtor - metadados e bind do
-    // Service - nao tem ordem garantida entre si).
+    // Fix (Player3D): albumId/bucketId resolvidos por TrackMetadataLoader,
+    // guardados ate o Service estar vinculado para podermos pedir
+    // loadQueueForTrack() (as duas tasks assincronas do construtor -
+    // metadados e bind do Service - nao tem ordem garantida entre si).
+    // bucketId (pasta) e o criterio alternativo usado pelo Service quando
+    // a faixa nao tem album (ver TrackMetadataLoader acima).
     private long mPendingAlbumId = -1;
+    private long mPendingBucketId = -1;
     private boolean mQueueRequested;
     // Posicao (ms) para onde pular assim que a faixa comecar a tocar de
     // verdade (retomar de um bookmark, ou retomar apos recriacao da
@@ -266,15 +269,31 @@ public class MoviePlayer implements
             String artist;
             Bitmap cover;
             long albumId = -1;
+            // Fix (Player3D): id da PASTA (BUCKET_ID) da faixa - usado como
+            // criterio de fila alternativo quando o album falha (ver
+            // comentario na declaracao de mPendingBucketId abaixo).
+            long bucketId = -1;
         }
 
         @Override
         protected Result doInBackground(Void... params) {
             Result result = new Result();
-            long albumId = -1;
             ContentResolver resolver = mContext.getContentResolver();
+            // Fix (Player3D): BUCKET_ID (mesma coluna usada para pasta em
+            // fotos/videos, existe tambem em audio) foi adicionado como
+            // segundo criterio de agrupamento da fila. Motivo: ALBUM_ID
+            // de arquivos de audio locais sem tag de album e NULO no
+            // MediaStore - e cursor.getLong() em coluna NULA retorna 0,
+            // nao -1, entao o codigo antigo tratava erroneamente "sem
+            // album" como "album de id 0", e a consulta da fila
+            // (ALBUM_ID=0) nao batia com nada (0 != NULL em SQL) -> fila
+            // sempre vazia, next/previous sempre "sem efeito", pra
+            // qualquer musica sem tag de album (bem comum em bibliotecas
+            // locais). Ver isNull() abaixo, e o fallback por pasta no
+            // MusicPlaybackService.
             String[] projection = {
-                    AudioColumns.TITLE, AudioColumns.ARTIST, AudioColumns.ALBUM_ID,
+                    AudioColumns.TITLE, AudioColumns.ARTIST,
+                    AudioColumns.ALBUM_ID, AudioColumns.BUCKET_ID,
             };
             Cursor cursor = null;
             try {
@@ -282,7 +301,8 @@ public class MoviePlayer implements
                 if (cursor != null && cursor.moveToFirst()) {
                     result.title = cursor.getString(0);
                     result.artist = cursor.getString(1);
-                    albumId = cursor.getLong(2);
+                    result.albumId = cursor.isNull(2) ? -1 : cursor.getLong(2);
+                    result.bucketId = cursor.isNull(3) ? -1 : cursor.getLong(3);
                 }
             } catch (Throwable t) {
                 Log.w(TAG, "falha ao ler metadados de " + mUri, t);
@@ -290,10 +310,9 @@ public class MoviePlayer implements
                 if (cursor != null) cursor.close();
             }
 
-            result.albumId = albumId;
             result.cover = decodeEmbeddedCover(mContext, mUri);
-            if (result.cover == null && albumId >= 0) {
-                result.cover = decodeAlbumArtFallback(resolver, albumId);
+            if (result.cover == null && result.albumId >= 0) {
+                result.cover = decodeAlbumArtFallback(resolver, result.albumId);
             }
             return result;
         }
@@ -310,18 +329,21 @@ public class MoviePlayer implements
             }
             mMetadataLoaded = true;
             mPendingAlbumId = result.albumId;
+            mPendingBucketId = result.bucketId;
             maybeStartPlayback();
         }
     }
 
     // Fix (Player3D): chamado depois que o Service esta vinculado E a
     // faixa comecou a tocar de fato (mCurrentPlayUri ja e a Uri real
-    // tocando) - pede ao Service para carregar a fila do album em segundo
-    // plano. A fila passa a viver la, nao aqui (ver comentario no topo de
-    // MusicPlaybackService.java).
-    private void requestQueueLoad(long albumId) {
-        if (mService != null && albumId >= 0) {
-            mService.loadQueueForAlbum(albumId, mCurrentPlayUri);
+    // tocando) - pede ao Service para carregar a fila em segundo plano
+    // (por album, com fallback por pasta - ver MusicPlaybackService). A
+    // fila passa a viver la, nao aqui (ver comentario no topo de
+    // MusicPlaybackService.java). Sempre chamado (mesmo com os dois ids
+    // invalidos) para o Service poder logar o motivo do fracasso.
+    private void requestQueueLoad(long albumId, long bucketId) {
+        if (mService != null) {
+            mService.loadQueueForTrack(albumId, bucketId, mCurrentPlayUri);
         }
     }
 
@@ -581,7 +603,7 @@ public class MoviePlayer implements
             // mQueueRequested garante um unico pedido mesmo assim.
             if (!mQueueRequested) {
                 mQueueRequested = true;
-                requestQueueLoad(mPendingAlbumId);
+                requestQueueLoad(mPendingAlbumId, mPendingBucketId);
             }
         }
     }

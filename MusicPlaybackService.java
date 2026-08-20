@@ -360,32 +360,43 @@ public class MusicPlaybackService extends Service
                 // real) e mantido.
             }
 
-            Result byAlbum = null;
-            if (mAlbumId >= 0) {
-                String sortOrder = AudioColumns.TRACK + " ASC, " + AudioColumns.TITLE + " ASC";
-                byAlbum = queryBy(AudioColumns.ALBUM_ID, mAlbumId, sortOrder, currentId, "album");
-                if (isUsable(byAlbum)) {
-                    Log.i(TAG, "fila carregada por album=" + mAlbumId
-                            + " (" + byAlbum.uris.length + " faixas)");
-                    return byAlbum;
-                }
-            }
-
+            // Fix (Player3D - pasta como padrao): a forma moderna de um
+            // player de musica local agrupar faixas e pela PASTA onde os
+            // arquivos estao - e assim que a maioria dos players simples
+            // funciona por padrao, e BUCKET_ID nunca e nulo pra midia
+            // local. ALBUM_ID so e usado como criterio quando a pasta
+            // nao rende fila usavel (pasta com 1 arquivo so, ou sem
+            // BUCKET_ID por algum motivo raro) - nesse caso, album ainda
+            // pode agrupar faixas que o usuario colocou em pastas
+            // diferentes mas com a mesma tag de album (import de app de
+            // musica, por exemplo).
+            Result byBucket = null;
             if (mBucketId >= 0) {
                 String sortOrder = AudioColumns.TITLE + " ASC";
-                Result byBucket = queryBy(AudioColumns.BUCKET_ID, mBucketId, sortOrder,
+                byBucket = queryBy(AudioColumns.BUCKET_ID, mBucketId, sortOrder,
                         currentId, "pasta");
                 if (isUsable(byBucket)) {
-                    Log.i(TAG, "album sem faixas suficientes (albumId=" + mAlbumId
-                            + "), fila carregada por pasta=" + mBucketId
+                    Log.i(TAG, "fila carregada por pasta=" + mBucketId
                             + " (" + byBucket.uris.length + " faixas)");
                     return byBucket;
                 }
             }
 
-            Log.i(TAG, "fila vazia para albumId=" + mAlbumId + " bucketId=" + mBucketId
+            if (mAlbumId >= 0) {
+                String sortOrder = AudioColumns.TRACK + " ASC, " + AudioColumns.TITLE + " ASC";
+                Result byAlbum = queryBy(AudioColumns.ALBUM_ID, mAlbumId, sortOrder,
+                        currentId, "album");
+                if (isUsable(byAlbum)) {
+                    Log.i(TAG, "pasta sem faixas suficientes (bucketId=" + mBucketId
+                            + "), fila carregada por album=" + mAlbumId
+                            + " (" + byAlbum.uris.length + " faixas)");
+                    return byAlbum;
+                }
+            }
+
+            Log.i(TAG, "fila vazia para bucketId=" + mBucketId + " albumId=" + mAlbumId
                     + " currentId=" + currentId + " - nenhum criterio encontrou mais de 1 faixa");
-            return byAlbum != null ? byAlbum : new Result();
+            return byBucket != null ? byBucket : new Result();
         }
 
         @Override
