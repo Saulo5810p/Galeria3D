@@ -40,7 +40,6 @@ import android.media.AudioAttributes;
 import android.media.AudioManager;
 import android.media.MediaMetadataRetriever;
 import android.media.MediaPlayer;
-import android.media.MediaMetadata;
 import android.media.session.MediaSession;
 import android.media.session.PlaybackState;
 import android.net.Uri;
@@ -261,7 +260,6 @@ public class MusicPlaybackService extends Service
         // (exigencia do Android 12+ para foregroundServiceType="mediaPlayback"),
         // entao chamamos ja, com uma notificacao "preparando" - ela e
         // atualizada de novo assim que o MediaPlayer estiver pronto.
-        updatePlaybackState();
         startForeground(NOTIFICATION_ID, buildNotification());
     }
 
@@ -705,26 +703,7 @@ public class MusicPlaybackService extends Service
         updateNotification();
     }
 
-    // Fix (Player3D): publica titulo/artista/capa/duracao na MediaSession.
-    // Sem isso, o sistema Android nao consegue desenhar o slider de
-    // progresso na notificacao (MediaStyle) porque nao sabe a duracao
-    // total da faixa - o slider simplesmente some. Chamado sempre junto
-    // de updatePlaybackState(), nunca sozinho, para manter metadata e
-    // estado sempre consistentes antes de toda atualizacao da notificacao.
-    private void publishMediaMetadata() {
-        if (mMediaSession == null) return;
-        MediaMetadata.Builder builder = new MediaMetadata.Builder()
-                .putString(MediaMetadata.METADATA_KEY_TITLE, mCurrentTitle)
-                .putString(MediaMetadata.METADATA_KEY_ARTIST, mCurrentArtist)
-                .putLong(MediaMetadata.METADATA_KEY_DURATION, getDuration());
-        if (mCurrentCover != null) {
-            builder.putBitmap(MediaMetadata.METADATA_KEY_ALBUM_ART, mCurrentCover);
-        }
-        mMediaSession.setMetadata(builder.build());
-    }
-
     private void updatePlaybackState() {
-        publishMediaMetadata();
         long actions = PlaybackState.ACTION_PLAY_PAUSE
                 | PlaybackState.ACTION_PLAY
                 | PlaybackState.ACTION_PAUSE
