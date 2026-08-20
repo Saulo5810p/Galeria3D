@@ -239,24 +239,6 @@ public class MusicPlaybackService extends Service
         mp.start();
         updatePlaybackState();
         notifyState(true);
-        // Passo 5 (Player3D): grava no historico local toda vez que uma
-        // faixa comeca a tocar de fato. O track_id e extraido da propria
-        // Uri (Audio.Media.EXTERNAL_CONTENT_URI/{id}, ver
-        // LocalAudio.getContentUri()) via ContentUris.parseId(), pois o
-        // Service nao guarda uma referencia a LocalAudio.
-        recordPlaybackHistory();
-    }
-
-    // Passo 5 (Player3D): ver onPrepared() acima.
-    private void recordPlaybackHistory() {
-        if (mCurrentUri == null) return;
-        try {
-            long trackId = android.content.ContentUris.parseId(mCurrentUri);
-            new com.android.gallery3d.data.PlaybackHistoryDatabase(getApplicationContext())
-                    .recordPlay(trackId);
-        } catch (Throwable t) {
-            Log.w(TAG, "nao foi possivel gravar historico para " + mCurrentUri, t);
-        }
     }
 
     @Override

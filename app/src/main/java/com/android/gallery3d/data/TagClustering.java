@@ -21,75 +21,68 @@ import android.content.Context;
 import com.android.gallery3d.R;
 
 import java.util.ArrayList;
-import java.util.Map;
-import java.util.TreeMap;
+import java.util.Collections;
+import java.util.Comparator;
 
+// Passo 5 (Player3D): simplificado para ser a pasta raiz "Musicas" - todas
+// as faixas de /local/audio em ordem alfabetica por TITLE, sem nenhum
+// agrupamento. No lugar do agrupamento original por etiqueta/tag.
 public class TagClustering extends Clustering {
     @SuppressWarnings("unused")
     private static final String TAG = "TagClustering";
 
-    private ArrayList<ArrayList<Path>> mClusters;
-    private String[] mNames;
-    private String mUntaggedString;
+    private String mAllTracksString;
+    private ArrayList<Path> mAllTracks;
+
+    private static class TitledPath {
+        Path path;
+        String title;
+    }
 
     public TagClustering(Context context) {
-        mUntaggedString = context.getResources().getString(R.string.untagged);
+        mAllTracksString = context.getResources().getString(R.string.filter_all_tracks);
     }
 
     @Override
     public void run(MediaSet baseSet) {
-        final TreeMap<String, ArrayList<Path>> map =
-                new TreeMap<String, ArrayList<Path>>();
-        final ArrayList<Path> untagged = new ArrayList<Path>();
-
+        final ArrayList<TitledPath> items = new ArrayList<TitledPath>();
         baseSet.enumerateTotalMediaItems(new MediaSet.ItemConsumer() {
             @Override
             public void consume(int index, MediaItem item) {
-                Path path = item.getPath();
-
-                String[] tags = item.getTags();
-                if (tags == null || tags.length == 0) {
-                    untagged.add(path);
-                    return;
-                }
-                for (int j = 0; j < tags.length; j++) {
-                    String key = tags[j];
-                    ArrayList<Path> list = map.get(key);
-                    if (list == null) {
-                        list = new ArrayList<Path>();
-                        map.put(key, list);
-                    }
-                    list.add(path);
-                }
+                TitledPath tp = new TitledPath();
+                tp.path = item.getPath();
+                tp.title = (item instanceof LocalAudio && ((LocalAudio) item).caption != null)
+                        ? ((LocalAudio) item).caption
+                        : "";
+                items.add(tp);
             }
         });
 
-        int m = map.size();
-        mClusters = new ArrayList<ArrayList<Path>>();
-        mNames = new String[m + ((untagged.size() > 0) ? 1 : 0)];
-        int i = 0;
-        for (Map.Entry<String, ArrayList<Path>> entry : map.entrySet()) {
-            mNames[i++] = entry.getKey();
-            mClusters.add(entry.getValue());
-        }
-        if (untagged.size() > 0) {
-            mNames[i++] = mUntaggedString;
-            mClusters.add(untagged);
+        Collections.sort(items, new Comparator<TitledPath>() {
+            @Override
+            public int compare(TitledPath a, TitledPath b) {
+                return a.title.compareToIgnoreCase(b.title);
+            }
+        });
+
+        mAllTracks = new ArrayList<Path>(items.size());
+        for (TitledPath tp : items) {
+            mAllTracks.add(tp.path);
         }
     }
 
     @Override
     public int getNumberOfClusters() {
-        return mClusters.size();
+        return mAllTracks != null && !mAllTracks.isEmpty() ? 1 : 0;
     }
 
     @Override
     public ArrayList<Path> getCluster(int index) {
-        return mClusters.get(index);
+        return mAllTracks;
     }
 
     @Override
     public String getClusterName(int index) {
-        return mNames[index];
+        return mAllTracksString;
     }
 }

@@ -94,23 +94,17 @@ public class GalleryActionBar implements OnNavigationListener {
         }
     }
 
-    // Passo 5 (Player3D): os 4 itens abaixo (Artistas/Playlists/Ultimos
-    // Reproduzidos/Musicas) reaproveitam as MESMAS constantes clusterBy
-    // (CLUSTER_BY_LOCATION/TIME/FACE/TAG) - so o texto exibido mudou. O
-    // significado por tras de cada uma foi trocado dentro das respectivas
-    // classes de clustering (LocationClustering, TimeClustering,
-    // FaceClustering, TagClustering), nao aqui.
     private static final ActionItem[] sClusterItems = new ActionItem[] {
         new ActionItem(FilterUtils.CLUSTER_BY_ALBUM, true, false, R.string.albums,
                 R.string.group_by_album),
         new ActionItem(FilterUtils.CLUSTER_BY_LOCATION, true, false,
-                R.string.filter_artists, R.string.group_by_location),
-        new ActionItem(FilterUtils.CLUSTER_BY_TIME, true, false,
-                R.string.filter_playlists, R.string.group_by_time),
-        new ActionItem(FilterUtils.CLUSTER_BY_FACE, true, false,
-                R.string.filter_recently_played, R.string.group_by_faces),
-        new ActionItem(FilterUtils.CLUSTER_BY_TAG, true, false,
-                R.string.filter_all_tracks, R.string.group_by_tags)
+                R.string.locations, R.string.location, R.string.group_by_location),
+        new ActionItem(FilterUtils.CLUSTER_BY_TIME, true, false, R.string.times,
+                R.string.time, R.string.group_by_time),
+        new ActionItem(FilterUtils.CLUSTER_BY_FACE, true, false, R.string.people,
+                R.string.group_by_faces),
+        new ActionItem(FilterUtils.CLUSTER_BY_TAG, true, false, R.string.tags,
+                R.string.group_by_tags)
     };
 
     private class ClusterAdapter extends BaseAdapter {

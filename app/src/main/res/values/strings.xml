@@ -463,6 +463,10 @@
 
     <!-- Group by Albums tab on Action Bar. [CHAR LIMIT=12] -->
     <string name="albums">Albums</string>
+    <string name="filter_artists">Artistas</string>
+    <string name="filter_playlists">Playlists</string>
+    <string name="filter_recently_played">Últimos Reproduzidos</string>
+    <string name="filter_all_tracks">Músicas</string>
 
     <!-- Group by Times tab on Action Bar. [CHAR LIMIT=12] -->
     <string name="times">Times</string>

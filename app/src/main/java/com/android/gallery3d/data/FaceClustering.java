@@ -17,126 +17,78 @@
 package com.android.gallery3d.data;
 
 import android.content.Context;
-import android.graphics.Rect;
 
 import com.android.gallery3d.R;
-import com.android.gallery3d.picasasource.PicasaSource;
 
 import java.util.ArrayList;
-import java.util.TreeMap;
+import java.util.HashMap;
+import java.util.List;
 
+// Passo 5 (Player3D): reescrito por dentro para listar as N ultimas
+// faixas reproduzidas (historico local, PlaybackHistoryDatabase), no
+// lugar do agrupamento original por rosto detectado. Lista PLANA (um
+// unico "cluster"), sem subpastas, ordenada da mais recente para a mais
+// antiga. Mantem apenas a assinatura publica da classe base Clustering.
 public class FaceClustering extends Clustering {
     @SuppressWarnings("unused")
     private static final String TAG = "FaceClustering";
 
-    private FaceCluster[] mClusters;
-    private String mUntaggedString;
-    private Context mContext;
+    private static final int HISTORY_LIMIT = 100;
 
-    private class FaceCluster {
-        ArrayList<Path> mPaths = new ArrayList<Path>();
-        String mName;
-        MediaItem mCoverItem;
-        Rect mCoverRegion;
-        int mCoverFaceIndex;
-
-        public FaceCluster(String name) {
-            mName = name;
-        }
-
-        public void add(MediaItem item, int faceIndex) {
-            Path path = item.getPath();
-            mPaths.add(path);
-            Face[] faces = item.getFaces();
-            if (faces != null) {
-                Face face = faces[faceIndex];
-                if (mCoverItem == null) {
-                    mCoverItem = item;
-                    mCoverRegion = face.getPosition();
-                    mCoverFaceIndex = faceIndex;
-                } else {
-                    Rect region = face.getPosition();
-                    if (mCoverRegion.width() < region.width() &&
-                            mCoverRegion.height() < region.height()) {
-                        mCoverItem = item;
-                        mCoverRegion = face.getPosition();
-                        mCoverFaceIndex = faceIndex;
-                    }
-                }
-            }
-        }
-
-        public int size() {
-            return mPaths.size();
-        }
-
-        public MediaItem getCover() {
-            if (mCoverItem != null) {
-                if (PicasaSource.isPicasaImage(mCoverItem)) {
-                    return PicasaSource.getFaceItem(mContext, mCoverItem, mCoverFaceIndex);
-                } else {
-                    return mCoverItem;
-                }
-            }
-            return null;
-        }
-    }
+    private final Context mContext;
+    private String mRecentlyPlayedString;
+    private ArrayList<Path> mRecent;
 
     public FaceClustering(Context context) {
-        mUntaggedString = context.getResources().getString(R.string.untagged);
         mContext = context;
+        mRecentlyPlayedString = context.getResources().getString(R.string.filter_recently_played);
     }
 
     @Override
     public void run(MediaSet baseSet) {
-        final TreeMap<Face, FaceCluster> map =
-                new TreeMap<Face, FaceCluster>();
-        final FaceCluster untagged = new FaceCluster(mUntaggedString);
-
+        // Mapa id (MediaStore, o mesmo usado em LocalAudio.id) -> Path,
+        // restrito as faixas que ainda existem na arvore /local/audio
+        // atual (evita listar historico de faixas apagadas).
+        final HashMap<Integer, Path> idToPath = new HashMap<Integer, Path>();
         baseSet.enumerateTotalMediaItems(new MediaSet.ItemConsumer() {
             @Override
             public void consume(int index, MediaItem item) {
-                Face[] faces = item.getFaces();
-                if (faces == null || faces.length == 0) {
-                    untagged.add(item, -1);
-                    return;
-                }
-                for (int j = 0; j < faces.length; j++) {
-                    Face face = faces[j];
-                    FaceCluster cluster = map.get(face);
-                    if (cluster == null) {
-                        cluster = new FaceCluster(face.getName());
-                        map.put(face, cluster);
-                    }
-                    cluster.add(item, j);
+                if (item instanceof LocalAudio) {
+                    idToPath.put(((LocalAudio) item).id, item.getPath());
                 }
             }
         });
 
-        int m = map.size();
-        mClusters = map.values().toArray(new FaceCluster[m + ((untagged.size() > 0) ? 1 : 0)]);
-        if (untagged.size() > 0) {
-            mClusters[m] = untagged;
+        PlaybackHistoryDatabase db = new PlaybackHistoryDatabase(mContext);
+        List<Long> recentIds;
+        try {
+            recentIds = db.getRecentDistinctTrackIds(HISTORY_LIMIT);
+        } finally {
+            db.close();
+        }
+
+        mRecent = new ArrayList<Path>();
+        for (long trackId : recentIds) {
+            Path path = idToPath.get((int) trackId);
+            if (path != null) {
+                mRecent.add(path);
+            }
         }
     }
 
     @Override
     public int getNumberOfClusters() {
-        return mClusters.length;
+        // Lista plana: 1 cluster so (se houver historico), sem subpastas.
+        return mRecent != null && !mRecent.isEmpty() ? 1 : 0;
     }
 
     @Override
     public ArrayList<Path> getCluster(int index) {
-        return mClusters[index].mPaths;
+        return mRecent;
     }
 
     @Override
     public String getClusterName(int index) {
-        return mClusters[index].mName;
-    }
-
-    @Override
-    public MediaItem getClusterCover(int index) {
-        return mClusters[index].getCover();
+        return mRecentlyPlayedString;
     }
 }
