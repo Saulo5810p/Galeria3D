@@ -265,35 +265,21 @@ public class MusicPlaybackService extends Service
         startForeground(NOTIFICATION_ID, buildNotification());
     }
 
-    // Fix (Player3D - fila por pasta): carrega a fila de outras faixas,
-    // tentando primeiro pelo MESMO album e, se isso nao render pelo menos
-    // 2 faixas, cai para a MESMA pasta (BUCKET_ID). Assincrono - quando
-    // termina, apenas guarda a fila internamente; nao toca nada sozinho.
-    //
-    // Motivo do fallback por pasta: ALBUM_ID de audio local sem tag de
-    // album fica NULO no MediaStore. O codigo antigo lia essa coluna nula
-    // com cursor.getLong(), que devolve 0 (nao -1) para coluna nula, e
-    // tratava isso como "album de id 0 valido" - a consulta seguinte
-    // (ALBUM_ID=0) nunca batia com nada, porque no SQL nenhuma linha com
-    // ALBUM_ID realmente NULO satisfaz "=0". Resultado: fila sempre vazia
-    // pra qualquer faixa sem tag de album (comum em bibliotecas locais,
-    // fora de servicos de streaming) - dai next/previous nunca funcionar,
-    // nem na notificacao nem na tela, e a faixa nunca avancar sozinha ao
-    // terminar. BUCKET_ID (pasta que contem o arquivo) e uma coluna do
-    // MediaStore que NUNCA e nula para arquivo de midia local, entao serve
-    // de fallback confiavel quando o album falha ou tem so 1 faixa.
-    public void loadQueueForTrack(long albumId, long bucketId, Uri currentUri) {
-        new QueueLoader(albumId, bucketId, currentUri).execute();
+    // Fix (Player3D): carrega a fila de outras faixas do MESMO album (mesmo
+    // padrao de consulta que antes vivia em MoviePlayer.AlbumQueueLoader,
+    // so que rodando aqui dentro do Service, que sobrevive independente da
+    // tela de reproducao estar aberta ou nao). Assincrono - quando termina,
+    // apenas guarda a fila internamente; nao toca nada sozinho.
+    public void loadQueueForAlbum(long albumId, Uri currentUri) {
+        new AlbumQueueLoader(albumId, currentUri).execute();
     }
 
-    private final class QueueLoader extends AsyncTask<Void, Void, QueueLoader.Result> {
+    private final class AlbumQueueLoader extends AsyncTask<Void, Void, AlbumQueueLoader.Result> {
         private final long mAlbumId;
-        private final long mBucketId;
         private final Uri mCurrentUriAtLoadTime;
 
-        QueueLoader(long albumId, long bucketId, Uri currentUri) {
+        AlbumQueueLoader(long albumId, Uri currentUri) {
             mAlbumId = albumId;
-            mBucketId = bucketId;
             mCurrentUriAtLoadTime = currentUri;
         }
 
@@ -302,19 +288,27 @@ public class MusicPlaybackService extends Service
             String[] titles;
             String[] artists;
             int currentIndex = -1;
-            String source = "nenhum";
         }
 
-        private Result queryBy(String column, long value, String sortOrder,
-                long currentId, String sourceLabel) {
+        @Override
+        protected Result doInBackground(Void... params) {
             Result result = new Result();
-            result.source = sourceLabel;
             ContentResolver resolver = getApplicationContext().getContentResolver();
             String[] projection = {
                     AudioColumns._ID, AudioColumns.TITLE, AudioColumns.ARTIST,
             };
-            String selection = column + "=?";
-            String[] selectionArgs = {String.valueOf(value)};
+            String selection = AudioColumns.ALBUM_ID + "=?";
+            String[] selectionArgs = {String.valueOf(mAlbumId)};
+            String sortOrder = AudioColumns.TRACK + " ASC, " + AudioColumns.TITLE + " ASC";
+
+            long currentId = -1;
+            try {
+                currentId = ContentUris.parseId(mCurrentUriAtLoadTime);
+            } catch (Throwable ignored) {
+                // Uri sem _id numerico no final - sem como comparar, a
+                // fila fica vazia e o comportamento antigo (sem navegacao
+                // real) e mantido.
+            }
 
             Cursor cursor = null;
             try {
@@ -338,54 +332,11 @@ public class MusicPlaybackService extends Service
                     }
                 }
             } catch (Throwable t) {
-                Log.w(TAG, "falha ao carregar fila (" + sourceLabel + "=" + value + ")", t);
+                Log.w(TAG, "falha ao carregar fila do album " + mAlbumId, t);
             } finally {
                 if (cursor != null) cursor.close();
             }
             return result;
-        }
-
-        private boolean isUsable(Result result) {
-            return result.uris != null && result.uris.length > 1 && result.currentIndex >= 0;
-        }
-
-        @Override
-        protected Result doInBackground(Void... params) {
-            long currentId = -1;
-            try {
-                currentId = ContentUris.parseId(mCurrentUriAtLoadTime);
-            } catch (Throwable ignored) {
-                // Uri sem _id numerico no final - sem como comparar, a
-                // fila fica vazia e o comportamento antigo (sem navegacao
-                // real) e mantido.
-            }
-
-            Result byAlbum = null;
-            if (mAlbumId >= 0) {
-                String sortOrder = AudioColumns.TRACK + " ASC, " + AudioColumns.TITLE + " ASC";
-                byAlbum = queryBy(AudioColumns.ALBUM_ID, mAlbumId, sortOrder, currentId, "album");
-                if (isUsable(byAlbum)) {
-                    Log.i(TAG, "fila carregada por album=" + mAlbumId
-                            + " (" + byAlbum.uris.length + " faixas)");
-                    return byAlbum;
-                }
-            }
-
-            if (mBucketId >= 0) {
-                String sortOrder = AudioColumns.TITLE + " ASC";
-                Result byBucket = queryBy(AudioColumns.BUCKET_ID, mBucketId, sortOrder,
-                        currentId, "pasta");
-                if (isUsable(byBucket)) {
-                    Log.i(TAG, "album sem faixas suficientes (albumId=" + mAlbumId
-                            + "), fila carregada por pasta=" + mBucketId
-                            + " (" + byBucket.uris.length + " faixas)");
-                    return byBucket;
-                }
-            }
-
-            Log.i(TAG, "fila vazia para albumId=" + mAlbumId + " bucketId=" + mBucketId
-                    + " currentId=" + currentId + " - nenhum criterio encontrou mais de 1 faixa");
-            return byAlbum != null ? byAlbum : new Result();
         }
 
         @Override
@@ -394,13 +345,10 @@ public class MusicPlaybackService extends Service
             // comecou ainda for a mesma que esta tocando agora (evita
             // sobrescrever a fila com dados de uma faixa antiga se o
             // usuario ja navegou de novo antes do carregamento terminar).
-            if (mCurrentUri == null || !mCurrentUri.equals(mCurrentUriAtLoadTime)) {
-                Log.i(TAG, "fila (" + result.source + ") descartada: faixa mudou antes do "
-                        + "carregamento terminar (esperado=" + mCurrentUriAtLoadTime
-                        + " atual=" + mCurrentUri + ")");
-                return;
-            }
-            if (!isUsable(result)) {
+            if (mCurrentUri == null || !mCurrentUri.equals(mCurrentUriAtLoadTime)) return;
+            if (result.uris == null || result.uris.length <= 1 || result.currentIndex < 0) {
+                // Album com 1 faixa so (ou faixa nao reencontrada na
+                // consulta) - nao ha o que navegar, fila fica vazia.
                 mQueueUris = null;
                 mQueueTitles = null;
                 mQueueArtists = null;
@@ -704,10 +652,6 @@ public class MusicPlaybackService extends Service
     // no caso sem fila e sem repeat).
     private void requestNext(boolean fromUserAction) {
         if (!hasQueue()) {
-            Log.i(TAG, "requestNext: sem fila carregada (mQueueUris="
-                    + (mQueueUris == null ? "null" : mQueueUris.length)
-                    + ", mQueueIndex=" + mQueueIndex + ") - " +
-                    (fromUserAction ? "pausando" : "avisando fim sem fila"));
             if (fromUserAction) {
                 pause();
             } else if (mCallback != null) {
