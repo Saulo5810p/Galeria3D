@@ -2,7 +2,7 @@
 <!--
      Passo 6 - Barra de busca holo, fixa no topo da GalleryActivity.
      Reaproveita o tema Holo ja aplicado ao app (Theme.GalleryBase, que
-     estende android:Theme.Holo) para o campo de texto -- sem shape ou
+     estende android:Theme.Holo) para o campo de texto - sem shape ou
      9-patch novos. Icone de lupa e o mesmo ja usado no menu original
      do app (@android:drawable/ic_menu_search, ver res/menu/gallery.xml).
 -->
