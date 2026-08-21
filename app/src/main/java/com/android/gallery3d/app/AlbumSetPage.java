@@ -31,6 +31,7 @@ import android.view.View;
 import android.view.View.OnClickListener;
 import android.widget.Button;
 import android.widget.RelativeLayout;
+import android.widget.SearchView;
 import android.widget.Toast;
 
 import com.android.gallery3d.R;
@@ -570,8 +571,47 @@ public class AlbumSetPage extends ActivityState implements
                     mActionBar.disableClusterMenu(true);
                 }
             }
+
+            setupSearchMenuItem(menu);
         }
         return true;
+    }
+
+    // Passo 6 (revisao): liga o icone de busca colapsavel (definido em
+    // menu/albumset.xml) ao filtro que ja existia via onSearchQueryChanged().
+    // A propria ActionBar do sistema cuida de esconder/mostrar o spinner de
+    // filtro (Musicas/Artistas/...) quando o SearchView expande/recolhe.
+    private void setupSearchMenuItem(Menu menu) {
+        MenuItem searchItem = menu.findItem(R.id.action_search);
+        if (searchItem == null) return;
+        SearchView searchView = (SearchView) searchItem.getActionView();
+        if (searchView == null) return;
+
+        searchView.setOnQueryTextListener(new SearchView.OnQueryTextListener() {
+            @Override
+            public boolean onQueryTextSubmit(String query) {
+                return true;
+            }
+
+            @Override
+            public boolean onQueryTextChange(String newText) {
+                onSearchQueryChanged(newText);
+                return true;
+            }
+        });
+
+        searchItem.setOnActionExpandListener(new MenuItem.OnActionExpandListener() {
+            @Override
+            public boolean onMenuItemActionExpand(MenuItem item) {
+                return true;
+            }
+
+            @Override
+            public boolean onMenuItemActionCollapse(MenuItem item) {
+                onSearchQueryChanged("");
+                return true;
+            }
+        });
     }
 
     @Override

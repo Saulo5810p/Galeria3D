@@ -29,6 +29,7 @@ import android.view.HapticFeedbackConstants;
 import android.view.Menu;
 import android.view.MenuInflater;
 import android.view.MenuItem;
+import android.widget.SearchView;
 import android.widget.Toast;
 
 import com.android.gallery3d.R;
@@ -559,9 +560,45 @@ public class AlbumPage extends ActivityState implements GalleryActionBar.Cluster
                     MediaSetUtils.isCameraSource(mMediaSetPath)
                     && GalleryUtils.isCameraAvailable(mActivity));
 
+            setupSearchMenuItem(menu);
         }
         actionBar.setSubtitle(null);
         return true;
+    }
+
+    // Passo 6 (revisao): liga o icone de busca colapsavel (definido em
+    // menu/album.xml) ao filtro que ja existia via onSearchQueryChanged().
+    private void setupSearchMenuItem(Menu menu) {
+        MenuItem searchItem = menu.findItem(R.id.action_search);
+        if (searchItem == null) return;
+        SearchView searchView = (SearchView) searchItem.getActionView();
+        if (searchView == null) return;
+
+        searchView.setOnQueryTextListener(new SearchView.OnQueryTextListener() {
+            @Override
+            public boolean onQueryTextSubmit(String query) {
+                return true;
+            }
+
+            @Override
+            public boolean onQueryTextChange(String newText) {
+                onSearchQueryChanged(newText);
+                return true;
+            }
+        });
+
+        searchItem.setOnActionExpandListener(new MenuItem.OnActionExpandListener() {
+            @Override
+            public boolean onMenuItemActionExpand(MenuItem item) {
+                return true;
+            }
+
+            @Override
+            public boolean onMenuItemActionCollapse(MenuItem item) {
+                onSearchQueryChanged("");
+                return true;
+            }
+        });
     }
 
     private void prepareAnimationBackToFilmstrip(int slotIndex) {
