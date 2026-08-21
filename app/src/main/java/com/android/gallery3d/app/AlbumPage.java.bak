@@ -33,7 +33,6 @@ import android.widget.Toast;
 
 import com.android.gallery3d.R;
 import com.android.gallery3d.common.Utils;
-import com.android.gallery3d.data.ClusterAlbum;
 import com.android.gallery3d.data.DataManager;
 import com.android.gallery3d.data.MediaDetails;
 import com.android.gallery3d.data.MediaItem;
@@ -650,17 +649,6 @@ public class AlbumPage extends ActivityState implements GalleryActionBar.Cluster
                 mSlotView.startRisingAnimation();
                 break;
             }
-        }
-    }
-
-    // Passo 6: mMediaSet aqui e diretamente o ClusterAlbum aberto (a pasta
-    // de faixas). Filtra in-memory; notifyContentChanged() dentro de
-    // setSearchFilter() ja avisa o AlbumDataLoader (mAlbumDataAdapter), que
-    // escuta o ContentListener do MediaSet e recarrega o SlotView sozinho.
-    @Override
-    public void onSearchQueryChanged(String query) {
-        if (mMediaSet instanceof ClusterAlbum) {
-            ((ClusterAlbum) mMediaSet).setSearchFilter(query);
         }
     }
 

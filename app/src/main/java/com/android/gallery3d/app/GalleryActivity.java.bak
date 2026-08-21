@@ -26,15 +26,11 @@ import android.content.pm.PackageManager;
 import android.net.Uri;
 import android.os.Build;
 import android.os.Bundle;
-import android.text.Editable;
-import android.text.TextWatcher;
 import android.view.InputDevice;
 import android.view.MotionEvent;
 import android.view.View;
 import android.view.Window;
 import android.view.WindowManager;
-import android.widget.EditText;
-import android.widget.FrameLayout;
 import android.widget.Toast;
 
 import androidx.core.app.ActivityCompat;
@@ -106,7 +102,6 @@ public final class GalleryActivity extends AbstractGalleryActivity implements On
         }
 
         setContentView(R.layout.main);
-        setupSearchBar();
 
         if (!hasMediaPermissions()) {
             mPendingSavedInstanceState = savedInstanceState;
@@ -125,43 +120,6 @@ public final class GalleryActivity extends AbstractGalleryActivity implements On
             initializeByIntent();
         }
         mHasStartedState = true;
-    }
-
-    // Passo 6: infla a barra de busca holo dentro do FrameLayout "header"
-    // ja existente em res/layout/main.xml (id gallery_root -> header),
-    // que ate agora estava sempre visibility="gone" e sem nenhum uso no
-    // codigo. Torna visivel e liga o TextWatcher: a cada tecla, repassa o
-    // texto para o ActivityState no topo da pilha (AlbumSetPage ou
-    // AlbumPage, dependendo de onde o usuario esta navegando), via o novo
-    // hook ActivityState.onSearchQueryChanged(). Chamado uma unica vez em
-    // onCreate(), a barra sobrevive as trocas de estado (nao e recriada a
-    // cada StateManager.startState()).
-    private void setupSearchBar() {
-        FrameLayout header = (FrameLayout) findViewById(R.id.header);
-        if (header == null) return;
-        View searchBar = getLayoutInflater().inflate(
-                R.layout.search_bar_holo, header, false);
-        header.addView(searchBar);
-        header.setVisibility(View.VISIBLE);
-
-        EditText editText = (EditText) searchBar.findViewById(R.id.search_bar_edit_text);
-        editText.addTextChangedListener(new TextWatcher() {
-            @Override
-            public void beforeTextChanged(CharSequence s, int start, int count, int after) {
-            }
-
-            @Override
-            public void onTextChanged(CharSequence s, int start, int before, int count) {
-            }
-
-            @Override
-            public void afterTextChanged(Editable s) {
-                if (getStateManager().getStateCount() > 0) {
-                    getStateManager().getTopState()
-                            .onSearchQueryChanged(s.toString());
-                }
-            }
-        });
     }
 
     @Override

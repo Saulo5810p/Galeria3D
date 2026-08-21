@@ -1,0 +1,41 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+     Passo 6 - Barra de busca holo, fixa no topo da GalleryActivity.
+     Reaproveita o tema Holo ja aplicado ao app (Theme.GalleryBase, que
+     estende android:Theme.Holo) para o campo de texto -- sem shape ou
+     9-patch novos. Icone de lupa e o mesmo ja usado no menu original
+     do app (@android:drawable/ic_menu_search, ver res/menu/gallery.xml).
+-->
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:id="@+id/search_bar_holo"
+    android:layout_width="match_parent"
+    android:layout_height="wrap_content"
+    android:orientation="horizontal"
+    android:gravity="center_vertical"
+    android:background="@drawable/actionbar_translucent"
+    android:paddingLeft="12dp"
+    android:paddingRight="12dp"
+    android:paddingTop="4dp"
+    android:paddingBottom="4dp">
+
+    <ImageView
+        android:layout_width="24dp"
+        android:layout_height="24dp"
+        android:src="@android:drawable/ic_menu_search"
+        android:contentDescription="@string/menu_search"
+        android:layout_marginRight="8dp" />
+
+    <EditText
+        android:id="@+id/search_bar_edit_text"
+        android:layout_width="0dp"
+        android:layout_height="wrap_content"
+        android:layout_weight="1"
+        android:singleLine="true"
+        android:inputType="text"
+        android:imeOptions="actionSearch"
+        android:hint="@string/menu_search"
+        android:background="@null"
+        android:textColor="@android:color/white"
+        android:textColorHint="@color/holo_blue_light" />
+
+</LinearLayout>

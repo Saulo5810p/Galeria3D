@@ -21,15 +21,7 @@ import java.util.ArrayList;
 public class ClusterAlbum extends MediaSet implements ContentListener {
     @SuppressWarnings("unused")
     private static final String TAG = "ClusterAlbum";
-    // Passo 6: mAllPaths guarda a lista completa (sem filtro) exatamente
-    // como veio do clustering. mPaths e o que os metodos publicos
-    // (getMediaItemCount/getMediaItem/etc) de fato leem -- vira a versao
-    // filtrada quando ha uma busca ativa, ou uma copia de mAllPaths
-    // quando nao ha. Nenhuma nova query ao MediaStore: e so um filtro
-    // in-memory sobre o que ja foi carregado.
-    private ArrayList<Path> mAllPaths = new ArrayList<Path>();
     private ArrayList<Path> mPaths = new ArrayList<Path>();
-    private String mSearchQuery = "";
     private String mName = "";
     private DataManager mDataManager;
     private MediaSet mClusterAlbumSet;
@@ -52,57 +44,12 @@ public class ClusterAlbum extends MediaSet implements ContentListener {
         return mCover != null ? mCover : super.getCoverMediaItem();
     }
 
-    // Passo 6: recebe o texto digitado na barra de busca holo e refaz
-    // mPaths a partir de mAllPaths, comparando TITLE (getName()) e, para
-    // faixas de audio (LocalAudio), tambem o artista -- ambos via
-    // String.contains() case-insensitive, sem nova consulta ao MediaStore.
-    // query vazia/nula reseta para a lista completa.
-    public void setSearchFilter(String query) {
-        mSearchQuery = (query == null) ? "" : query.trim();
-        applySearchFilter();
-        notifyContentChanged();
-    }
-
-    private void applySearchFilter() {
-        if (mSearchQuery.isEmpty()) {
-            mPaths = new ArrayList<Path>(mAllPaths);
-            return;
-        }
-        String needle = mSearchQuery.toLowerCase();
-        ArrayList<Path> filtered = new ArrayList<Path>();
-        ArrayList<MediaItem> items = getMediaItemFromPath(
-                mAllPaths, 0, mAllPaths.size(), mDataManager);
-        for (MediaItem item : items) {
-            if (item == null) continue;
-            boolean matches = false;
-            String title = item.getName();
-            if (title != null && title.toLowerCase().contains(needle)) {
-                matches = true;
-            }
-            if (!matches && item instanceof LocalAudio) {
-                String artist = ((LocalAudio) item).artist;
-                if (artist != null && artist.toLowerCase().contains(needle)) {
-                    matches = true;
-                }
-            }
-            if (matches) {
-                filtered.add(item.getPath());
-            }
-        }
-        mPaths = filtered;
-    }
-
     void setMediaItems(ArrayList<Path> paths) {
-        mAllPaths = paths;
-        applySearchFilter();
+        mPaths = paths;
     }
 
     ArrayList<Path> getMediaItems() {
-        // Passo 6: usa mAllPaths (nao filtrado) -- este metodo alimenta a
-        // reconciliacao de updateClustersContents() em ClusterAlbumSet, que
-        // precisa ver todos os itens reais para decidir o que foi apagado,
-        // independente de uma busca estar ativa ou nao.
-        return mAllPaths;
+        return mPaths;
     }
 
     public void setName(String name) {

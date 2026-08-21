@@ -112,13 +112,6 @@ abstract public class ActivityState {
     protected void onStateResult(int requestCode, int resultCode, Intent data) {
     }
 
-    // Passo 6: chamado pela barra de busca holo (GalleryActivity) toda vez
-    // que o texto digitado muda. Implementacao padrao vazia -- so os
-    // estados que exibem faixas/pastas filtraveis (AlbumSetPage, AlbumPage)
-    // sobrescrevem isso; os demais (PhotoPage, SlideshowPage etc) ignoram.
-    public void onSearchQueryChanged(String query) {
-    }
-
     protected float[] mBackgroundColor;
 
     protected int getBackgroundColorId() {
