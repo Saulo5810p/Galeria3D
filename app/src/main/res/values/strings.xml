@@ -117,6 +117,23 @@
 
     <!-- Details dialog "OK" button. Dismisses dialog. -->
     <string name="delete">Delete</string>
+
+    <!-- Passo 7 (Player3D): "Mover para album" -->
+    <string name="move_to_album">Move to album</string>
+    <string name="move_to_album_title">Choose destination album</string>
+    <plurals name="move_selection_confirm">
+        <item quantity="one">Move the selected track to \"%1$s\"?</item>
+        <item quantity="other">Move %2$d selected tracks to \"%1$s\"?</item>
+    </plurals>
+    <string name="move_selection_success">Moved</string>
+    <string name="move_selection_failure">Some tracks could not be moved</string>
+    <string name="create_album">Create album</string>
+    <string name="create_album_title">New album</string>
+    <string name="create_album_hint">Album name</string>
+    <string name="create_album_exists">An album with this name already exists</string>
+    <string name="create_album_invalid_name">Enter a valid name</string>
+    <string name="create_album_failure">Could not create the album</string>
+    <string name="create_album_success">Album created — it will appear once you move a track into it</string>
     <!-- String Delete the selected media item(s) [CHAR LIMIT=50] -->
     <plurals name="delete_selection">
         <item quantity="one">Delete selected item?</item>

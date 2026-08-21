@@ -30,20 +30,13 @@
     <item android:id="@+id/action_settings"
             android:title="@string/settings"
             android:showAsAction="never" />
+    <!-- Passo 7 (Player3D): "Criar album" no menu overflow, logo abaixo
+         de Configuracoes. -->
+    <item android:id="@+id/action_create_album"
+            android:title="@string/create_album"
+            android:showAsAction="never" />
     <item android:id="@+id/action_general_help"
             android:title="@string/help"
             android:visible="false"
             android:showAsAction="never" />
-    <!-- Passo 6 (revisao): busca como icone colapsavel ao lado do overflow
-         (3 pontinhos), no estilo holo classico de apps AOSP da epoca do
-         Gallery3D (Contatos, Play Store etc usavam o mesmo padrao). Ao
-         clicar, o SearchView se expande e a propria ActionBar do sistema
-         esconde automaticamente o spinner de filtro (Musicas/Artistas/...)
-         e o titulo; ao fechar, tudo volta ao normal sozinho, sem codigo de
-         animacao manual. -->
-    <item android:id="@+id/action_search"
-            android:icon="@android:drawable/ic_menu_search"
-            android:title="@string/menu_search"
-            android:showAsAction="ifRoom|collapseActionView"
-            android:actionViewClass="android.widget.SearchView" />
 </menu>

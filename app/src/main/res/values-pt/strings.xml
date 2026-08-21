@@ -50,6 +50,22 @@
     <string name="wallpaper" msgid="140165383777262070">"Definindo plano de fundo..."</string>
     <string name="camera_setas_wallpaper" msgid="797463183863414289">"Plano de fundo"</string>
     <string name="delete" msgid="2839695998251824487">"Excluir"</string>
+    <!-- Passo 7 (Player3D): "Mover para album" -->
+    <string name="move_to_album">"Mover para álbum"</string>
+    <string name="move_to_album_title">"Escolha o álbum de destino"</string>
+    <plurals name="move_selection_confirm">
+        <item quantity="one">"Mover a faixa selecionada para \"%1$s\"?"</item>
+        <item quantity="other">"Mover %2$d faixas selecionadas para \"%1$s\"?"</item>
+    </plurals>
+    <string name="move_selection_success">"Movido"</string>
+    <string name="move_selection_failure">"Algumas faixas não puderam ser movidas"</string>
+    <string name="create_album">"Criar álbum"</string>
+    <string name="create_album_title">"Novo álbum"</string>
+    <string name="create_album_hint">"Nome do álbum"</string>
+    <string name="create_album_exists">"Já existe um álbum com esse nome"</string>
+    <string name="create_album_invalid_name">"Digite um nome válido"</string>
+    <string name="create_album_failure">"Não foi possível criar o álbum"</string>
+    <string name="create_album_success">"Álbum criado — ele vai aparecer assim que você mover uma faixa para dentro dele"</string>
   <plurals name="delete_selection">
     <item quantity="one" msgid="6453379735401083732">"Excluir o item selecionado?"</item>
     <item quantity="other" msgid="5874316486520635333">"Excluir os itens selecionados?"</item>

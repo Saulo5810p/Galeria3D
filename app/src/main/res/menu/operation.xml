@@ -36,6 +36,11 @@
             android:actionProviderClass="android.widget.ShareActionProvider"
             android:showAsAction="never">
     </item>
+    <item android:id="@+id/action_move_to_album"
+            android:icon="@drawable/ic_menu_ptp_holo_light"
+            android:title="@string/move_to_album"
+            android:visible="false"
+            android:showAsAction="ifRoom" />
     <item android:id="@+id/action_delete"
             android:icon="@drawable/ic_menu_trash_holo_light"
             android:title="@string/delete"

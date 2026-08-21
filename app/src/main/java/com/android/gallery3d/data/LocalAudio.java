@@ -270,7 +270,9 @@ public class LocalAudio extends LocalMediaItem {
         // Passo 4.3 (Player3D): SUPPORT_EDIT habilita o botao do editor de
         // fotos na tela de reproducao, apontando pra capa da faixa (ver
         // getCoverUriForEdit() abaixo), nao pro arquivo de audio em si.
-        return SUPPORT_DELETE | SUPPORT_SHARE | SUPPORT_PLAY | SUPPORT_INFO | SUPPORT_TRIM | SUPPORT_MUTE | SUPPORT_EDIT;
+        // Passo 7 (Player3D): SUPPORT_MOVE habilita "Mover para album" no
+        // menu de selecao multipla.
+        return SUPPORT_DELETE | SUPPORT_SHARE | SUPPORT_PLAY | SUPPORT_INFO | SUPPORT_TRIM | SUPPORT_MUTE | SUPPORT_EDIT | SUPPORT_MOVE;
     }
 
     // Passo 4.3 (Player3D): resolve a capa atual da faixa (mesma logica de
