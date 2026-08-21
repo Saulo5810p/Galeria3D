@@ -744,9 +744,16 @@ public class MoviePlayer implements
 
     @Override
     public void onSeekMove(int time) {
-        if (mService != null) {
-            mService.seekTo(time);
-        }
+        // Fix (Player3D): NAO chama mService.seekTo() a cada movimento do
+        // dedo durante o arraste - isso disparava dezenas de seeks
+        // sobrepostos por segundo no MediaPlayer, que podia deixar o
+        // decoder num estado inconsistente ate o arraste terminar
+        // (sintoma relatado: usuario arrasta a barra pra 3min, ela MOSTRA
+        // 3min, mas o audio real continua tocando do 1min). A barra
+        // continua se movendo normalmente durante o arraste (isso e
+        // 100% visual, feito em TimeBar.onTouchEvent/getScrubberTime) -
+        // o audio real so precisa seguir de verdade quando o usuario
+        // solta o dedo, em onSeekEnd().
     }
 
     @Override

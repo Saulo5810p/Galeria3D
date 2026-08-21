@@ -59,7 +59,7 @@ import java.io.IOException;
 
 public class MusicPlaybackService extends Service
         implements MediaPlayer.OnPreparedListener, MediaPlayer.OnCompletionListener,
-        MediaPlayer.OnErrorListener {
+        MediaPlayer.OnErrorListener, MediaPlayer.OnSeekCompleteListener {
 
     private static final String TAG = "MusicPlaybackService";
 
@@ -246,6 +246,7 @@ public class MusicPlaybackService extends Service
         mMediaPlayer.setOnPreparedListener(this);
         mMediaPlayer.setOnCompletionListener(this);
         mMediaPlayer.setOnErrorListener(this);
+        mMediaPlayer.setOnSeekCompleteListener(this);
         mPreparing = true;
         try {
             mMediaPlayer.setDataSource(getApplicationContext(), uri);
@@ -635,11 +636,35 @@ public class MusicPlaybackService extends Service
         }
     }
 
+    // Fix (Player3D): seekTo() sozinho e assincrono no MediaPlayer -
+    // getCurrentPosition() logo em seguida pode ainda devolver a posicao
+    // ANTIGA por um instante, ate o decoder de fato pular pro novo ponto.
+    // O log abaixo ajuda a confirmar, num proximo logcat, se algum
+    // arquivo especifico esta demorando muito ou falhando o seek (nesse
+    // caso onSeekComplete() abaixo nunca dispara pra essa chamada, ou
+    // dispara com getCurrentPosition() bem longe do milliseconds pedido).
     public void seekTo(int milliseconds) {
         if (mMediaPlayer != null && !mPreparing) {
+            Log.i(TAG, "seekTo(" + milliseconds + ") pedido, posicao atual antes = "
+                    + mMediaPlayer.getCurrentPosition());
             mMediaPlayer.seekTo(milliseconds);
-            updatePlaybackState();
+        } else {
+            Log.w(TAG, "seekTo(" + milliseconds + ") ignorado - mMediaPlayer="
+                    + mMediaPlayer + " mPreparing=" + mPreparing);
         }
+    }
+
+    // Fix (Player3D): so publica o novo PlaybackState (posicao) DEPOIS
+    // que o MediaPlayer confirma que o seek de fato terminou - antes
+    // disso, updatePlaybackState() era chamado no proprio seekTo(),
+    // publicando uma posicao que o decoder ainda nao tinha alcancado de
+    // verdade. Isso fazia a UI (slider/lockscreen) mostrar a posicao NOVA
+    // (pedida) enquanto o audio real ainda tocava da posicao ANTIGA, ate
+    // o decoder alcancar sozinho - sensacao de audio "atrasado" ou preso.
+    @Override
+    public void onSeekComplete(MediaPlayer mp) {
+        Log.i(TAG, "onSeekComplete: posicao real agora = " + mp.getCurrentPosition());
+        updatePlaybackState();
     }
 
     public int getCurrentPosition() {

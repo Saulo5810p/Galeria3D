@@ -466,19 +466,7 @@ public class AlbumSetSlidingWindow implements AlbumSetDataLoader.DataListener {
                 if (bitmap == null) return; // recurso do placeholder ausente/corrompido
             }
 
-            // Fix (Player3D): o slot pode ter sido reciclado (rolagem da
-            // grade recarregou outro item nesse indice, ou o cache foi
-            // invalidado) enquanto este carregamento assincrono ainda
-            // estava em voo - nesse caso mData[...] pode estar nulo, ou
-            // ja apontar para uma entry de outro item cujo coverLoader
-            // atual nao e mais este. Aplicar os dados aqui de qualquer
-            // jeito causava NullPointerException (entry nula) ou
-            // corrompia visualmente um slot com a capa errada (entry
-            // valida, mas de outro item). Os dois casos so significam
-            // "este resultado nao serve mais" - descarta sem crashar.
             AlbumSetEntry entry = mData[mSlotIndex % mData.length];
-            if (entry == null || entry.coverLoader != this) return;
-
             TiledTexture texture = new TiledTexture(bitmap);
             entry.bitmapTexture = texture;
             entry.content = texture;
@@ -542,12 +530,7 @@ public class AlbumSetSlidingWindow implements AlbumSetDataLoader.DataListener {
             Bitmap bitmap = getBitmap();
             if (bitmap == null) return; // Error or recycled
 
-            // Fix (Player3D): mesmo risco de corrida do AlbumCoverLoader
-            // acima - slot pode ter sido reciclado enquanto este
-            // carregamento assincrono estava em voo.
             AlbumSetEntry entry = mData[mSlotIndex % mData.length];
-            if (entry == null || entry.labelLoader != this) return;
-
             BitmapTexture texture = new BitmapTexture(bitmap);
             texture.setOpaque(false);
             entry.labelTexture = texture;
