@@ -331,13 +331,6 @@ public class AlbumSlidingWindow implements AlbumDataLoader.DataListener {
                 if (bitmap == null) return; // recurso do placeholder ausente/corrompido
             }
             AlbumEntry entry = mData[mSlotIndex % mData.length];
-            // Passo 6 (fix crash): o slot pode ter sido reciclado (rolagem/lista
-            // trocada) enquanto este carregamento assincrono ainda estava em voo.
-            // Nesse caso 'entry' pode ser nulo, ou pode ja pertencer a outro item
-            // (contentLoader != this). Descarta o resultado obsoleto nos dois casos.
-            if (entry == null || entry.contentLoader != this) {
-                return;
-            }
             entry.bitmapTexture = new TiledTexture(bitmap);
             entry.content = entry.bitmapTexture;
 
