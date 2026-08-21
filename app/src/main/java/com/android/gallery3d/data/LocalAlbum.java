@@ -76,10 +76,11 @@ public class LocalAlbum extends MediaSet {
             mItemPath = LocalImage.ITEM_PATH;
         } else {
             mWhereClause = AudioColumns.BUCKET_ID + " = ?";
-            // Audio has no DATE_TAKEN column; order by DATE_ADDED instead
-            // (same substitution used in LocalAudio.loadFromCursor).
-            mOrderClause = AudioColumns.DATE_ADDED + " DESC, "
-                    + AudioColumns._ID + " DESC";
+            // Fix (Player3D): antes ordenava por DATE_ADDED DESC (mais
+            // recente primeiro). Trocado para TITLE ASC para ficar igual
+            // a ordem alfabetica usada pela fila de reproducao e pelas
+            // outras abas (Musicas/Artistas/Playlists).
+            mOrderClause = AudioColumns.TITLE + " ASC";
             mBaseUri = Audio.Media.EXTERNAL_CONTENT_URI;
             mProjection = LocalAudio.PROJECTION;
             mItemPath = LocalAudio.ITEM_PATH;

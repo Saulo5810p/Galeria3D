@@ -25,6 +25,8 @@ import android.provider.MediaStore.Audio;
 import android.provider.MediaStore.Audio.Playlists;
 
 import java.util.ArrayList;
+import java.util.Collections;
+import java.util.Comparator;
 import java.util.HashMap;
 import java.util.LinkedHashMap;
 import java.util.Map;
@@ -53,15 +55,19 @@ public class TimeClustering extends Clustering {
         mClusters = new ArrayList<ArrayList<Path>>();
         mNames = new ArrayList<String>();
 
-        // Mapa _id (MediaStore) -> Path, para so incluir na playlist as
-        // faixas que tambem existem na arvore /local/audio atual (evita
-        // listar faixas apagadas/movidas que ainda estejam na playlist).
+        // Mapa _id (MediaStore) -> Path/titulo, para so incluir na
+        // playlist as faixas que tambem existem na arvore /local/audio
+        // atual (evita listar faixas apagadas/movidas que ainda estejam
+        // na playlist) e para poder ordenar os membros por titulo.
         final HashMap<Long, Path> idToPath = new HashMap<Long, Path>();
+        final HashMap<Long, String> idToTitle = new HashMap<Long, String>();
         baseSet.enumerateTotalMediaItems(new MediaSet.ItemConsumer() {
             @Override
             public void consume(int index, MediaItem item) {
                 if (item instanceof LocalAudio) {
-                    idToPath.put((long) ((LocalAudio) item).id, item.getPath());
+                    long id = (long) ((LocalAudio) item).id;
+                    idToPath.put(id, item.getPath());
+                    idToTitle.put(id, item.getName() != null ? item.getName() : "");
                 }
             }
         });
@@ -70,7 +76,8 @@ public class TimeClustering extends Clustering {
         LinkedHashMap<Long, String> playlists = queryPlaylists(resolver);
 
         for (Map.Entry<Long, String> playlist : playlists.entrySet()) {
-            ArrayList<Path> members = queryPlaylistMembers(resolver, playlist.getKey(), idToPath);
+            ArrayList<Path> members = queryPlaylistMembers(
+                    resolver, playlist.getKey(), idToPath, idToTitle);
             if (members.isEmpty()) continue;
             mNames.add(playlist.getValue());
             mClusters.add(members);
@@ -96,24 +103,51 @@ public class TimeClustering extends Clustering {
         return result;
     }
 
+    private static class TitledPath {
+        Path path;
+        String title;
+    }
+
     private ArrayList<Path> queryPlaylistMembers(ContentResolver resolver, long playlistId,
-            HashMap<Long, Path> idToPath) {
-        ArrayList<Path> result = new ArrayList<Path>();
+            HashMap<Long, Path> idToPath, HashMap<Long, String> idToTitle) {
+        final ArrayList<TitledPath> titled = new ArrayList<TitledPath>();
         Uri membersUri = Playlists.Members.getContentUri("external", playlistId);
         String[] projection = {Playlists.Members.AUDIO_ID};
+        // Fix (Player3D): o PLAY_ORDER (ordem manual que o usuario deu a
+        // playlist) deixou de ser usado para exibir/ordenar - as faixas
+        // agora sao reordenadas por titulo logo abaixo, para ficar igual
+        // a ordem alfabetica usada pela fila de reproducao e pelas outras
+        // abas (Musicas/Artistas). O ORDER BY aqui so mantem a consulta
+        // deterministica antes da reordenacao.
         Cursor cursor = resolver.query(membersUri, projection, null, null,
                 Playlists.Members.PLAY_ORDER + " ASC");
-        if (cursor == null) return result;
+        if (cursor == null) return new ArrayList<Path>();
         try {
             while (cursor.moveToNext()) {
                 long audioId = cursor.getLong(0);
                 Path path = idToPath.get(audioId);
                 if (path != null) {
-                    result.add(path);
+                    TitledPath tp = new TitledPath();
+                    tp.path = path;
+                    String title = idToTitle.get(audioId);
+                    tp.title = (title != null) ? title : "";
+                    titled.add(tp);
                 }
             }
         } finally {
             cursor.close();
+        }
+
+        Collections.sort(titled, new Comparator<TitledPath>() {
+            @Override
+            public int compare(TitledPath a, TitledPath b) {
+                return a.title.compareToIgnoreCase(b.title);
+            }
+        });
+
+        ArrayList<Path> result = new ArrayList<Path>(titled.size());
+        for (TitledPath tp : titled) {
+            result.add(tp.path);
         }
         return result;
     }

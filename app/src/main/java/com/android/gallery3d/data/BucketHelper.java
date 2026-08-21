@@ -118,11 +118,13 @@ class BucketHelper {
                     jc, resolver, Audio.Media.EXTERNAL_CONTENT_URI, buckets);
         }
         BucketEntry[] entries = buckets.values().toArray(new BucketEntry[buckets.size()]);
+        // Fix (Player3D): trocado de "mais recente primeiro" (dateTaken)
+        // para alfabetico por nome, mesma logica aplicada em
+        // loadBucketEntriesFromFilesTable.
         Arrays.sort(entries, new Comparator<BucketEntry>() {
             @Override
             public int compare(BucketEntry a, BucketEntry b) {
-                // sorted by dateTaken in descending order
-                return b.dateTaken - a.dateTaken;
+                return a.bucketName.compareToIgnoreCase(b.bucketName);
             }
         });
         return entries;
@@ -162,7 +164,21 @@ class BucketHelper {
         } finally {
             Utils.closeSilently(cursor);
         }
-        return buffer.toArray(new BucketEntry[buffer.size()]);
+        // Fix (Player3D): antes ficava na ordem bruta da consulta (sem
+        // ORDER BY, essencialmente por id de insercao). Ordenado por
+        // nome para ficar igual a ordem alfabetica usada pela fila de
+        // reproducao e pelas outras abas (Musicas/Artistas/Playlists).
+        // O reordenamento de Camera/Download para o inicio (feito depois,
+        // em LocalAlbumSet) continua funcionando normalmente por cima
+        // desta ordenacao.
+        BucketEntry[] entries = buffer.toArray(new BucketEntry[buffer.size()]);
+        Arrays.sort(entries, new Comparator<BucketEntry>() {
+            @Override
+            public int compare(BucketEntry a, BucketEntry b) {
+                return a.bucketName.compareToIgnoreCase(b.bucketName);
+            }
+        });
+        return entries;
     }
 
     private static String getBucketNameInTable(
