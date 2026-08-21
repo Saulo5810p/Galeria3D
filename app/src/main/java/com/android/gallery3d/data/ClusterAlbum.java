@@ -60,6 +60,10 @@ public class ClusterAlbum extends MediaSet implements ContentListener {
     public void setSearchFilter(String query) {
         mSearchQuery = (query == null) ? "" : query.trim();
         applySearchFilter();
+        // Passo 6 (correcao): mesmo motivo do ClusterAlbumSet - sem isso,
+        // reload() nunca detecta a mudanca (o MediaStore em si nao mudou)
+        // e a lista de faixas na tela nunca e atualizada apos filtrar.
+        mDataVersion = nextVersionNumber();
         notifyContentChanged();
     }
 

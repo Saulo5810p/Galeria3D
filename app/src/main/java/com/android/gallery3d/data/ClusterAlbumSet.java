@@ -69,6 +69,13 @@ public class ClusterAlbumSet extends MediaSet implements ContentListener {
     public void setSearchFilter(String query) {
         mSearchQuery = (query == null) ? "" : query.trim();
         applySearchFilter();
+        // Passo 6 (correcao): applySearchFilter() so troca a lista mAlbums
+        // em memoria - sem isso, reload() (chamado pela thread de
+        // carregamento da grade) so incrementa mDataVersion quando o
+        // MediaStore muda, entao a busca nunca aparecia na tela mesmo
+        // filtrando certo por baixo dos panos. Forcamos aqui uma nova
+        // versao para o loader perceber a mudanca e redesenhar a grade.
+        mDataVersion = nextVersionNumber();
         notifyContentChanged();
     }
 
