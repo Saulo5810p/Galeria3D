@@ -17,7 +17,9 @@
 package com.android.gallery3d.app;
 
 import android.app.Activity;
+import android.app.AlertDialog;
 import android.content.Context;
+import android.content.DialogInterface;
 import android.content.Intent;
 import android.graphics.Rect;
 import android.os.Bundle;
@@ -30,8 +32,8 @@ import android.view.MenuItem;
 import android.view.View;
 import android.view.View.OnClickListener;
 import android.widget.Button;
+import android.widget.EditText;
 import android.widget.RelativeLayout;
-import android.widget.SearchView;
 import android.widget.Toast;
 
 import com.android.gallery3d.R;
@@ -43,6 +45,7 @@ import com.android.gallery3d.data.MediaItem;
 import com.android.gallery3d.data.MediaObject;
 import com.android.gallery3d.data.MediaSet;
 import com.android.gallery3d.data.Path;
+import com.android.gallery3d.util.MoveToAlbumHelper;
 import com.android.gallery3d.glrenderer.FadeTexture;
 import com.android.gallery3d.glrenderer.GLCanvas;
 import com.android.gallery3d.picasasource.PicasaSource;
@@ -76,6 +79,12 @@ public class AlbumSetPage extends ActivityState implements
     public static final String KEY_SET_TITLE = "set-title";
     public static final String KEY_SET_SUBTITLE = "set-subtitle";
     public static final String KEY_SELECTED_CLUSTER_TYPE = "selected-cluster";
+    // Passo 7 (Player3D): quando true, toques em um album-folha nao abrem
+    // o album -- em vez disso devolvem o Path escolhido via
+    // setStateResult()/finishState() para quem chamou startStateForResult
+    // (ver AlbumPage.startMoveToAlbumFlow()).
+    public static final String KEY_MOVE_TARGET_MODE = "move-target-mode";
+    public static final String KEY_MOVE_TARGET_RESULT_PATH = "move-target-result-path";
 
     private static final int DATA_CACHE_SIZE = 256;
     private static final int REQUEST_DO_ANIMATION = 1;
@@ -100,6 +109,8 @@ public class AlbumSetPage extends ActivityState implements
 
     private boolean mGetContent;
     private boolean mGetAlbum;
+    // Passo 7 (Player3D): ver KEY_MOVE_TARGET_MODE acima.
+    private boolean mMoveTargetMode;
     private ActionModeHandler mActionModeHandler;
     private DetailsHelper mDetailsHelper;
     private MyDetailsSource mDetailsSource;
@@ -253,7 +264,16 @@ public class AlbumSetPage extends ActivityState implements
         int[] center = new int[2];
         getSlotCenter(slotIndex, center);
         data.putIntArray(AlbumPage.KEY_SET_CENTER, center);
-        if (mGetAlbum && targetSet.isLeafAlbum()) {
+        if (mMoveTargetMode && targetSet.isLeafAlbum()) {
+            // Passo 7 (Player3D): usuario tocou num album-folha enquanto
+            // escolhia o destino de "Mover para album". Devolve o Path
+            // escolhido para quem chamou startStateForResult, sem abrir
+            // o album normalmente.
+            Intent result = new Intent();
+            result.putExtra(KEY_MOVE_TARGET_RESULT_PATH, targetSet.getPath().toString());
+            setStateResult(Activity.RESULT_OK, result);
+            mActivity.getStateManager().finishState(this);
+        } else if (mGetAlbum && targetSet.isLeafAlbum()) {
             Activity activity = mActivity;
             Intent result = new Intent()
                     .putExtra(AlbumPicker.KEY_ALBUM_PATH, targetSet.getPath().toString());
@@ -326,6 +346,7 @@ public class AlbumSetPage extends ActivityState implements
         Context context = mActivity.getAndroidContext();
         mGetContent = data.getBoolean(GalleryActivity.KEY_GET_CONTENT, false);
         mGetAlbum = data.getBoolean(GalleryActivity.KEY_GET_ALBUM, false);
+        mMoveTargetMode = data.getBoolean(KEY_MOVE_TARGET_MODE, false);
         mTitle = data.getString(AlbumSetPage.KEY_SET_TITLE);
         mSubtitle = data.getString(AlbumSetPage.KEY_SET_SUBTITLE);
         mEyePosition = new EyePosition(context, this);
@@ -571,47 +592,8 @@ public class AlbumSetPage extends ActivityState implements
                     mActionBar.disableClusterMenu(true);
                 }
             }
-
-            setupSearchMenuItem(menu);
         }
         return true;
-    }
-
-    // Passo 6 (revisao): liga o icone de busca colapsavel (definido em
-    // menu/albumset.xml) ao filtro que ja existia via onSearchQueryChanged().
-    // A propria ActionBar do sistema cuida de esconder/mostrar o spinner de
-    // filtro (Musicas/Artistas/...) quando o SearchView expande/recolhe.
-    private void setupSearchMenuItem(Menu menu) {
-        MenuItem searchItem = menu.findItem(R.id.action_search);
-        if (searchItem == null) return;
-        SearchView searchView = (SearchView) searchItem.getActionView();
-        if (searchView == null) return;
-
-        searchView.setOnQueryTextListener(new SearchView.OnQueryTextListener() {
-            @Override
-            public boolean onQueryTextSubmit(String query) {
-                return true;
-            }
-
-            @Override
-            public boolean onQueryTextChange(String newText) {
-                onSearchQueryChanged(newText);
-                return true;
-            }
-        });
-
-        searchItem.setOnActionExpandListener(new MenuItem.OnActionExpandListener() {
-            @Override
-            public boolean onMenuItemActionExpand(MenuItem item) {
-                return true;
-            }
-
-            @Override
-            public boolean onMenuItemActionCollapse(MenuItem item) {
-                onSearchQueryChanged("");
-                return true;
-            }
-        });
     }
 
     @Override
@@ -659,9 +641,61 @@ public class AlbumSetPage extends ActivityState implements
                 activity.startActivity(new Intent(activity, GallerySettings.class));
                 return true;
             }
+            case R.id.action_create_album: {
+                showCreateAlbumDialog();
+                return true;
+            }
             default:
                 return false;
         }
+    }
+
+    // Passo 7 (Player3D): dialogo "Criar album" (menu overflow, abaixo de
+    // Configuracoes). Cria uma pasta vazia em Music/<nome>; ela so aparece
+    // como album na grade quando a 1a faixa for movida pra dentro (o
+    // MediaStore agrupa albuns a partir de arquivos de midia existentes,
+    // uma pasta vazia nao gera nenhuma linha por si so) -- avisamos isso
+    // no Toast de sucesso para nao parecer que a criacao falhou.
+    private void showCreateAlbumDialog() {
+        final Activity activity = mActivity;
+        final EditText input = new EditText(activity);
+        input.setSingleLine(true);
+        input.setHint(R.string.create_album_hint);
+
+        new AlertDialog.Builder(activity)
+                .setTitle(R.string.create_album_title)
+                .setView(input)
+                .setPositiveButton(R.string.confirm, new DialogInterface.OnClickListener() {
+                    @Override
+                    public void onClick(DialogInterface dialog, int which) {
+                        String name = input.getText().toString().trim();
+                        if (name.isEmpty()) {
+                            Toast.makeText(activity,
+                                    R.string.create_album_invalid_name,
+                                    Toast.LENGTH_SHORT).show();
+                            return;
+                        }
+                        if (MoveToAlbumHelper.albumNameExists(activity, name)) {
+                            Toast.makeText(activity,
+                                    R.string.create_album_exists,
+                                    Toast.LENGTH_SHORT).show();
+                            return;
+                        }
+                        java.io.File created = MoveToAlbumHelper.createEmptyAlbum(
+                                activity, name);
+                        if (created == null) {
+                            Toast.makeText(activity,
+                                    R.string.create_album_failure,
+                                    Toast.LENGTH_SHORT).show();
+                            return;
+                        }
+                        Toast.makeText(activity,
+                                R.string.create_album_success,
+                                Toast.LENGTH_LONG).show();
+                    }
+                })
+                .setNegativeButton(R.string.cancel, null)
+                .show();
     }
 
     @Override

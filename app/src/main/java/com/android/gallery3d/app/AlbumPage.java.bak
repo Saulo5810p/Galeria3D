@@ -17,7 +17,9 @@
 package com.android.gallery3d.app;
 
 import android.app.Activity;
+import android.app.AlertDialog;
 import android.content.Context;
+import android.content.DialogInterface;
 import android.content.Intent;
 import android.graphics.Rect;
 import android.net.Uri;
@@ -29,13 +31,14 @@ import android.view.HapticFeedbackConstants;
 import android.view.Menu;
 import android.view.MenuInflater;
 import android.view.MenuItem;
-import android.widget.SearchView;
 import android.widget.Toast;
 
 import com.android.gallery3d.R;
 import com.android.gallery3d.common.Utils;
 import com.android.gallery3d.data.ClusterAlbum;
 import com.android.gallery3d.data.DataManager;
+import com.android.gallery3d.data.LocalAlbum;
+import com.android.gallery3d.data.LocalAudio;
 import com.android.gallery3d.data.MediaDetails;
 import com.android.gallery3d.data.MediaItem;
 import com.android.gallery3d.data.MediaObject;
@@ -49,6 +52,10 @@ import com.android.gallery3d.ui.ActionModeHandler;
 import com.android.gallery3d.ui.ActionModeHandler.ActionModeListener;
 import com.android.gallery3d.ui.AlbumSlotRenderer;
 import com.android.gallery3d.ui.DetailsHelper;
+import com.android.gallery3d.util.MoveToAlbumHelper;
+
+import java.io.File;
+import java.util.ArrayList;
 import com.android.gallery3d.ui.DetailsHelper.CloseListener;
 import com.android.gallery3d.ui.GLRoot;
 import com.android.gallery3d.ui.GLView;
@@ -78,6 +85,14 @@ public class AlbumPage extends ActivityState implements GalleryActionBar.Cluster
     private static final int REQUEST_SLIDESHOW = 1;
     public static final int REQUEST_PHOTO = 2;
     private static final int REQUEST_DO_ANIMATION = 3;
+    // Passo 7 (Player3D): navegacao interna para escolher o album de
+    // destino de "Mover para album" (ver AlbumSetPage.KEY_MOVE_TARGET_MODE).
+    private static final int REQUEST_MOVE_DESTINATION = 4;
+    // Passo 7 (Player3D): retorno do pedido de permissao extra em SDK
+    // 30-32 (RecoverableSecurityException), diferente de
+    // REQUEST_MOVE_DESTINATION para nao confundir os dois fluxos dentro
+    // de onStateResult().
+    private static final int REQUEST_MOVE_PERMISSION = 5;
 
     private static final int BIT_LOADING_RELOAD = 1;
     private static final int BIT_LOADING_SYNC = 2;
@@ -99,6 +114,15 @@ public class AlbumPage extends ActivityState implements GalleryActionBar.Cluster
 
     private ActionModeHandler mActionModeHandler;
     private int mFocusIndex = 0;
+    // Passo 7 (Player3D): Paths das faixas selecionadas quando o usuario
+    // toca "Mover para album", guardados enquanto o app navega ate a
+    // grade de Albuns para escolher o destino (ver startMoveToAlbumFlow()/
+    // confirmAndMoveSelectionTo() abaixo).
+    private ArrayList<Path> mPendingMoveSelection;
+    // Passo 7 (Player3D): pasta destino guardada junto com
+    // mPendingMoveSelection quando o SO pede confirmacao extra de
+    // permissao (SDK 30-32) antes de terminar de mover.
+    private File mPendingMoveDestDir;
     private DetailsHelper mDetailsHelper;
     private MyDetailsSource mDetailsSource;
     private MediaSet mMediaSet;
@@ -560,45 +584,9 @@ public class AlbumPage extends ActivityState implements GalleryActionBar.Cluster
                     MediaSetUtils.isCameraSource(mMediaSetPath)
                     && GalleryUtils.isCameraAvailable(mActivity));
 
-            setupSearchMenuItem(menu);
         }
         actionBar.setSubtitle(null);
         return true;
-    }
-
-    // Passo 6 (revisao): liga o icone de busca colapsavel (definido em
-    // menu/album.xml) ao filtro que ja existia via onSearchQueryChanged().
-    private void setupSearchMenuItem(Menu menu) {
-        MenuItem searchItem = menu.findItem(R.id.action_search);
-        if (searchItem == null) return;
-        SearchView searchView = (SearchView) searchItem.getActionView();
-        if (searchView == null) return;
-
-        searchView.setOnQueryTextListener(new SearchView.OnQueryTextListener() {
-            @Override
-            public boolean onQueryTextSubmit(String query) {
-                return true;
-            }
-
-            @Override
-            public boolean onQueryTextChange(String newText) {
-                onSearchQueryChanged(newText);
-                return true;
-            }
-        });
-
-        searchItem.setOnActionExpandListener(new MenuItem.OnActionExpandListener() {
-            @Override
-            public boolean onMenuItemActionExpand(MenuItem item) {
-                return true;
-            }
-
-            @Override
-            public boolean onMenuItemActionCollapse(MenuItem item) {
-                onSearchQueryChanged("");
-                return true;
-            }
-        });
     }
 
     private void prepareAnimationBackToFilmstrip(int slotIndex) {
@@ -662,6 +650,10 @@ public class AlbumPage extends ActivityState implements GalleryActionBar.Cluster
                 GalleryUtils.startCameraActivity(mActivity);
                 return true;
             }
+            case R.id.action_move_to_album: {
+                startMoveToAlbumFlow();
+                return true;
+            }
             default:
                 return false;
         }
@@ -687,6 +679,153 @@ public class AlbumPage extends ActivityState implements GalleryActionBar.Cluster
                 mSlotView.startRisingAnimation();
                 break;
             }
+            case REQUEST_MOVE_DESTINATION: {
+                // Passo 7 (Player3D): volta da navegacao de "escolher album
+                // destino" (AlbumSetPage em KEY_MOVE_TARGET_MODE). data traz
+                // o Path do album escolhido, ou e nulo se o usuario cancelou
+                // (apertou voltar sem tocar em nenhum album).
+                if (data == null) return;
+                String albumPath = data.getStringExtra(AlbumSetPage.KEY_MOVE_TARGET_RESULT_PATH);
+                if (albumPath != null) {
+                    confirmAndMoveSelectionTo(albumPath);
+                }
+                break;
+            }
+            case REQUEST_MOVE_PERMISSION: {
+                // Passo 7 (Player3D): volta do dialogo de permissao do
+                // sistema (RecoverableSecurityException, SDK 30-32).
+                // Tenta mover de novo so os itens que ficaram pendentes,
+                // independente de result (se negada, moveOne() vai falhar
+                // de novo e cair no Toast de falha normalmente).
+                ArrayList<Path> retry = mPendingMoveSelection;
+                File destDir = mPendingMoveDestDir;
+                mPendingMoveSelection = null;
+                mPendingMoveDestDir = null;
+                if (retry != null && !retry.isEmpty() && destDir != null) {
+                    executeMove(retry, destDir);
+                }
+                break;
+            }
+        }
+    }
+
+    // Passo 7 (Player3D): dispara o fluxo de "Mover para album" a partir da
+    // selecao atual nesta pagina (mMediaSet aqui e um ClusterAlbum -- a
+    // pasta/agrupamento de faixas aberto no momento, que pode ser de
+    // qualquer filtro do spinner, nao so Albuns). Guarda os Paths
+    // selecionados e navega ate a grade de Albuns em modo "escolher
+    // destino" (forcado, independente do filtro em que o usuario estava).
+    private void startMoveToAlbumFlow() {
+        ArrayList<Path> selected = mSelectionManager.getSelected(false);
+        if (selected.isEmpty()) return;
+
+        mPendingMoveSelection = selected;
+
+        Bundle data = new Bundle();
+        String mediaPath = mActivity.getDataManager().getTopSetPath(
+                DataManager.INCLUDE_ALL);
+        data.putString(AlbumSetPage.KEY_MEDIA_PATH, mediaPath);
+        data.putInt(AlbumSetPage.KEY_SELECTED_CLUSTER_TYPE,
+                FilterUtils.CLUSTER_BY_ALBUM);
+        data.putBoolean(AlbumSetPage.KEY_MOVE_TARGET_MODE, true);
+        mActivity.getStateManager().startStateForResult(
+                AlbumSetPage.class, REQUEST_MOVE_DESTINATION, data);
+    }
+
+    // Passo 7 (Player3D): usuario ja escolheu o album destino (albumPath).
+    // Mostra a confirmacao e, se aceito, executa a movimentacao fisica de
+    // cada faixa selecionada, uma por uma, via MoveToAlbumHelper.
+    private void confirmAndMoveSelectionTo(final String albumPath) {
+        final ArrayList<Path> selection = mPendingMoveSelection;
+        mPendingMoveSelection = null;
+        if (selection == null || selection.isEmpty()) return;
+
+        final MediaSet destAlbum = (MediaSet) mActivity.getDataManager()
+                .getMediaObject(albumPath);
+        if (!(destAlbum instanceof LocalAlbum)) {
+            // So deveria acontecer se o usuario conseguiu chegar aqui com
+            // um album que nao e uma pasta fisica real -- nao deveria ser
+            // possivel dado que a navegacao foi forcada para o filtro
+            // Albuns, mas protege contra dados inconsistentes.
+            Toast.makeText(mActivity, R.string.move_selection_failure,
+                    Toast.LENGTH_SHORT).show();
+            return;
+        }
+        final File destDir = ((LocalAlbum) destAlbum).getDirectoryFile();
+        if (destDir == null) {
+            Toast.makeText(mActivity, R.string.move_selection_failure,
+                    Toast.LENGTH_SHORT).show();
+            return;
+        }
+
+        final int count = selection.size();
+        String albumName = destAlbum.getName();
+        String message = mActivity.getResources().getQuantityString(
+                R.plurals.move_selection_confirm, count, albumName, count);
+
+        new AlertDialog.Builder(mActivity)
+                .setMessage(message)
+                .setPositiveButton(R.string.confirm, new DialogInterface.OnClickListener() {
+                    @Override
+                    public void onClick(DialogInterface dialog, int which) {
+                        executeMove(selection, destDir);
+                    }
+                })
+                .setNegativeButton(R.string.cancel, null)
+                .show();
+    }
+
+    private void executeMove(ArrayList<Path> selection, File destDir) {
+        DataManager dataManager = mActivity.getDataManager();
+        MoveToAlbumHelper.MoveResult result = new MoveToAlbumHelper.MoveResult();
+        ArrayList<Path> stillPending = new ArrayList<Path>();
+        for (Path path : selection) {
+            MediaObject obj = dataManager.getMediaObject(path);
+            if (!(obj instanceof LocalAudio)) {
+                result.failureCount++;
+                continue;
+            }
+            LocalAudio audio = (LocalAudio) obj;
+            MoveToAlbumHelper.MoveResult itemResult = new MoveToAlbumHelper.MoveResult();
+            boolean ok = MoveToAlbumHelper.moveOne(mActivity, audio.getContentUri(),
+                    audio.filePath, destDir, itemResult);
+            if (ok) {
+                result.successCount++;
+            } else if (itemResult.pendingPermission != null) {
+                // Passo 7 (Player3D): SDK 30-32 pode exigir consentimento
+                // explicito do usuario por item (RecoverableSecurityException).
+                // Guarda este item para tentar de novo assim que a
+                // permissao for concedida (ver onStateResult/REQUEST_MOVE_PERMISSION).
+                result.pendingPermission = itemResult.pendingPermission;
+                stillPending.add(path);
+            } else {
+                result.failureCount++;
+            }
+        }
+
+        mSelectionManager.leaveSelectionMode();
+
+        if (result.pendingPermission != null) {
+            mPendingMoveSelection = stillPending;
+            mPendingMoveDestDir = destDir;
+            try {
+                mActivity.startIntentSenderForResult(result.pendingPermission,
+                        REQUEST_MOVE_PERMISSION, null, 0, 0, 0);
+                // Toast final so depois do retry (onStateResult), para nao
+                // reportar falha prematuramente nos itens que so estao
+                // aguardando a permissao.
+                return;
+            } catch (Exception e) {
+                result.failureCount += stillPending.size();
+            }
+        }
+
+        if (result.failureCount == 0) {
+            Toast.makeText(mActivity, R.string.move_selection_success,
+                    Toast.LENGTH_SHORT).show();
+        } else {
+            Toast.makeText(mActivity, R.string.move_selection_failure,
+                    Toast.LENGTH_LONG).show();
         }
     }
 
