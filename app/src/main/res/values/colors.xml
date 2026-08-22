@@ -71,4 +71,9 @@
     <color name="face_detect_fail">#80d05060</color>
     <color name="gray">#FFAAAAAA</color>
 
+    <!-- Correcao (Player3D): barra cinza bem translucida atras dos botoes
+         da tela de reproducao, so decorativa, pra dar mais cara de player
+         de musica. -->
+    <color name="player3d_controls_backdrop">#40808080</color>
+
 </resources>

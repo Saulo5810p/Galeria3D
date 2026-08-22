@@ -35,12 +35,13 @@ import com.android.gallery3d.R;
  * - [Anterior] [Play/Pause] [Proxima]: juntos, centralizados
  *   horizontalmente, mas posicionados mais PERTO DA BASE da tela (nao
  *   mais no centro vertical exato), como qualquer tocador de musica.
- * - Canto inferior ESQUERDO: [Repetir todas] sozinho (do lado de onde
- *   fica o botao de filtro da ActionBar).
- * - Canto inferior DIREITO: [Editar capa] [Repetir uma], lado a lado
- *   (editar capa mais para dentro, repetir uma mais para fora, na
- *   quina).
- * Todos os 5 botoes SEMPRE visiveis, em qualquer orientacao, sem sair da
+ * - Canto inferior DIREITO (linha mais acima): [Editar capa], sozinho.
+ * - Linha propria, BEM mais proxima da TimeBar (quase colada acima
+ *   dela): [Repetir todas] no canto esquerdo, [Repetir uma] no canto
+ *   direito.
+ * - Barra cinza translucida (so decorativa) cobrindo do topo da linha
+ *   Anterior/Play/Proxima ate o fim inferior da tela.
+ * Todos os botoes SEMPRE visiveis, em qualquer orientacao, sem sair da
  * tela e sem se sobrepor.
  */
 public class MovieControllerOverlay extends CommonControllerOverlay implements
@@ -51,6 +52,12 @@ public class MovieControllerOverlay extends CommonControllerOverlay implements
     private final Handler handler;
     private final Runnable startHidingRunnable;
     private final Animation hideAnimation;
+
+    // Correcao (Player3D): barra decorativa cinza bem translucida atras
+    // dos botoes inferiores, so pra dar mais cara de player de musica -
+    // nao reage a toque, nao tem nenhuma logica alem de aparecer/sumir
+    // junto com os botoes.
+    private final View mControlsBackdrop;
 
     private final ImageView mRepeatAllView;
     private final ImageView mPreviousView;
@@ -63,6 +70,17 @@ public class MovieControllerOverlay extends CommonControllerOverlay implements
 
         LayoutParams wrapContent =
                 new LayoutParams(LayoutParams.WRAP_CONTENT, LayoutParams.WRAP_CONTENT);
+        LayoutParams matchParent =
+                new LayoutParams(LayoutParams.MATCH_PARENT, LayoutParams.MATCH_PARENT);
+
+        // Adicionada antes dos botoes para ficar atras deles no z-order
+        // (primeira view adicionada = desenhada primeiro = fica por baixo).
+        mControlsBackdrop = new View(context);
+        mControlsBackdrop.setBackgroundColor(
+                context.getResources().getColor(R.color.player3d_controls_backdrop));
+        mControlsBackdrop.setClickable(false);
+        mControlsBackdrop.setFocusable(false);
+        addView(mControlsBackdrop, matchParent);
 
         mRepeatAllView = createExtraButton(context,
                 R.drawable.ic_vidcontrol_repeat_all, R.string.player3d_repeat_all);
@@ -84,6 +102,7 @@ public class MovieControllerOverlay extends CommonControllerOverlay implements
                 R.drawable.ic_menu_edit_holo_dark, R.string.player3d_edit_cover);
         addView(mEditCoverView, wrapContent);
 
+        mControlsBackdrop.setVisibility(View.INVISIBLE);
         mRepeatAllView.setVisibility(View.INVISIBLE);
         mPreviousView.setVisibility(View.INVISIBLE);
         mNextView.setVisibility(View.INVISIBLE);
@@ -153,6 +172,7 @@ public class MovieControllerOverlay extends CommonControllerOverlay implements
     private void startHiding() {
         startHideAnimation(mBackground);
         startHideAnimation(mTimeBar);
+        startHideAnimation(mControlsBackdrop);
         startHideAnimation(mPlayPauseReplayView);
         startHideAnimation(mRepeatAllView);
         startHideAnimation(mPreviousView);
@@ -171,6 +191,7 @@ public class MovieControllerOverlay extends CommonControllerOverlay implements
         handler.removeCallbacks(startHidingRunnable);
         mBackground.setAnimation(null);
         mTimeBar.setAnimation(null);
+        mControlsBackdrop.setAnimation(null);
         mPlayPauseReplayView.setAnimation(null);
         mRepeatAllView.setAnimation(null);
         mPreviousView.setAnimation(null);
@@ -262,9 +283,15 @@ public class MovieControllerOverlay extends CommonControllerOverlay implements
     //   mPlayPauseReplayView em w/2,h/2 por padrao; aqui recalculamos a
     //   posicao vertical dos 3 botoes principais para perto do rodape,
     //   acima da TimeBar).
-    // - Canto inferior esquerdo: [RepeatAll] sozinho.
-    // - Canto inferior direito: [EditCover] [RepeatOne], lado a lado
-    //   (EditCover mais para dentro, RepeatOne na quina).
+    // - [EditCover]: mantido no canto inferior direito, na mesma altura
+    //   de antes (nao mexido por este fix).
+    // - Correcao (mover repeat mais pra baixo): [RepeatAll] (canto
+    //   inferior esquerdo) e [RepeatOne] (canto inferior direito) agora
+    //   ficam na sua PROPRIA linha, mais abaixo que EditCover - bem perto
+    //   da TimeBar, praticamente colados acima dela, sem cobrir/sair da
+    //   tela. Como RepeatOne fica mais abaixo e mais a direita que
+    //   EditCover, e nao compartilham mais a mesma linha, nao ha
+    //   sobreposicao entre os dois.
     @Override
     protected void onLayout(boolean changed, int left, int top, int right, int bottom) {
         super.onLayout(changed, left, top, right, bottom);
@@ -299,26 +326,34 @@ public class MovieControllerOverlay extends CommonControllerOverlay implements
 
         updateExtraButtonsVisibility();
 
-        // Cantos inferiores: mesma altura da linha principal, nao
-        // competem por espaco vertical com ela (ficam mais abaixo, perto
-        // da TimeBar).
         int margin = buttonWidth / 2;
-        int cornerY = h - mTimeBar.getPreferredHeight() - margin
+
+        // EditCover: canto inferior direito, altura original (nao mexida
+        // por este fix), mais para dentro da tela.
+        int editCornerY = h - mTimeBar.getPreferredHeight() - margin
+                - mEditCoverView.getMeasuredHeight() / 2;
+        int editCoverCenterX = w - margin - mEditCoverView.getMeasuredWidth() / 2;
+        layoutCenteredAt(mEditCoverView, editCoverCenterX, editCornerY);
+
+        // RepeatAll / RepeatOne: linha propria, bem mais proxima da
+        // TimeBar (bem menos folga que a linha do EditCover acima),
+        // grudados nos cantos esquerdo/direito, sem tocar a TimeBar nem
+        // sair da tela.
+        int repeatMargin = Math.max(buttonHeight / 6, 1);
+        int repeatCornerY = h - mTimeBar.getPreferredHeight() - repeatMargin
                 - mRepeatAllView.getMeasuredHeight() / 2;
-        int spacing = buttonWidth / 4;
 
-        // Canto inferior esquerdo: Repetir Todas, sozinho.
         int repeatAllCenterX = margin + mRepeatAllView.getMeasuredWidth() / 2;
-        layoutCenteredAt(mRepeatAllView, repeatAllCenterX, cornerY);
+        layoutCenteredAt(mRepeatAllView, repeatAllCenterX, repeatCornerY);
 
-        // Canto inferior direito: Repetir Uma na quina, Editar Capa do
-        // lado, mais para dentro.
         int repeatOneCenterX = w - margin - mRepeatOneView.getMeasuredWidth() / 2;
-        layoutCenteredAt(mRepeatOneView, repeatOneCenterX, cornerY);
+        layoutCenteredAt(mRepeatOneView, repeatOneCenterX, repeatCornerY);
 
-        int editCoverCenterX = repeatOneCenterX - mRepeatOneView.getMeasuredWidth() / 2
-                - spacing - mEditCoverView.getMeasuredWidth() / 2;
-        layoutCenteredAt(mEditCoverView, editCoverCenterX, cornerY);
+        // Barra decorativa: do topo da linha principal de botoes (Anterior/
+        // Play/Proxima, a mais alta de todas) ate o fim inferior da tela -
+        // so enfeite, nao interfere em nenhum toque nem posicionamento.
+        int backdropTop = mainRowCenterY - buttonHeight / 2;
+        mControlsBackdrop.layout(0, backdropTop, w, h);
     }
 
     private void layoutCenteredAt(View view, int centerX, int centerY) {
@@ -344,6 +379,7 @@ public class MovieControllerOverlay extends CommonControllerOverlay implements
         int visibility = mPlayPauseReplayView.getVisibility();
         mRepeatAllView.setVisibility(visibility);
         mRepeatOneView.setVisibility(visibility);
+        mControlsBackdrop.setVisibility(visibility);
     }
 
     /**

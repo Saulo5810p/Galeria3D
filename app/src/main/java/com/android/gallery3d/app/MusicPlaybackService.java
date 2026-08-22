@@ -686,12 +686,14 @@ public class MusicPlaybackService extends Service
     public void toggleRepeatAll() {
         mRepeatMode = (mRepeatMode == RepeatMode.ALL) ? RepeatMode.OFF : RepeatMode.ALL;
         if (mCallback != null) mCallback.onRepeatModeChanged(mRepeatMode);
+        updatePlaybackState();
         updateNotification();
     }
 
     public void toggleRepeatOne() {
         mRepeatMode = (mRepeatMode == RepeatMode.ONE) ? RepeatMode.OFF : RepeatMode.ONE;
         if (mCallback != null) mCallback.onRepeatModeChanged(mRepeatMode);
+        updatePlaybackState();
         updateNotification();
     }
 
