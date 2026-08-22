@@ -129,7 +129,15 @@ public final class ImageLoader {
             cursor = context.getContentResolver().query(uri,
                     new String[] { MediaStore.Images.ImageColumns.ORIENTATION },
                     null, null, null);
-            if (cursor != null && cursor.moveToNext()) {
+            // Correcao (Player3D, mesmo crash do editor de capa): provider
+            // de FileProvider pode devolver um cursor com moveToNext()==true
+            // mas ZERO colunas (nao tem ORIENTATION nem nada parecido) -
+            // cursor.getInt(0) nesse caso estoura CursorIndexOutOfBoundsException,
+            // que nao entrava em nenhum catch abaixo e derrubava o app. Este
+            // metodo ja foi projetado pra cair no fallback de EXIF por
+            // stream logo abaixo quando a consulta falha; so faltava
+            // reconhecer esse caso tambem.
+            if (cursor != null && cursor.getColumnCount() > 0 && cursor.moveToNext()) {
                 int ori = cursor.getInt(0);
                 switch (ori) {
                     case 90:
@@ -147,6 +155,13 @@ public final class ImageLoader {
         } catch (IllegalArgumentException e) {
             // Do nothing
         } catch (IllegalStateException e) {
+            // Do nothing
+        } catch (RuntimeException e) {
+            // Correcao: cobre CursorIndexOutOfBoundsException e qualquer
+            // outro formato inesperado de cursor vindo de um provider que
+            // nao e o MediaStore (ex.: FileProvider da capa temporaria) -
+            // mesmo espirito das excecoes especificas acima, so mais
+            // abrangente. Cai no fallback de EXIF por stream normalmente.
             // Do nothing
         } finally {
             Utils.closeSilently(cursor);

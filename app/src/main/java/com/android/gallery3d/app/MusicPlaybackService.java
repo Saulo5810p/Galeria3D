@@ -40,6 +40,9 @@ import android.media.AudioAttributes;
 import android.media.AudioManager;
 import android.media.MediaMetadataRetriever;
 import android.media.MediaPlayer;
+import android.media.MediaMetadata;
+import android.media.session.MediaSession;
+import android.media.session.PlaybackState;
 import android.net.Uri;
 import android.os.AsyncTask;
 import android.os.Binder;
@@ -48,12 +51,7 @@ import android.os.IBinder;
 import android.provider.MediaStore.Audio.Albums;
 import android.provider.MediaStore.Audio.AudioColumns;
 import android.provider.MediaStore.Audio.Media;
-import android.support.v4.media.MediaMetadataCompat;
-import android.support.v4.media.session.MediaSessionCompat;
-import android.support.v4.media.session.PlaybackStateCompat;
 import android.util.Log;
-
-import androidx.core.app.NotificationCompat;
 
 import com.android.gallery3d.R;
 
@@ -125,16 +123,21 @@ public class MusicPlaybackService extends Service
     }
 
     private MediaPlayer mMediaPlayer;
-    // Correcao (notificacao - botoes de repeat sumindo no expandido, Samsung
-    // One UI/Android 13+): trocado de android.media.session.MediaSession
-    // (API framework, sem NENHUM suporte a repeat mode) para
-    // MediaSessionCompat (androidx.media). O template de notificacao de
-    // midia redesenhado (Android 13+) so reconhece um botao de "repetir"
-    // quando a sessao publica PlaybackStateCompat.ACTION_SET_REPEAT_MODE +
-    // MediaSessionCompat.setRepeatMode() - a API framework nunca teve esse
-    // conceito, entao nao tinha como o sistema mostrar isso de forma
-    // confiavel antes, nao importa quantos addAction() a notificacao tivesse.
-    private MediaSessionCompat mMediaSession;
+    // Correcao (Player3D): CHEGUEI a migrar isto para MediaSessionCompat/
+    // PlaybackStateCompat (androidx.media), teorizando que o template de
+    // notificacao redesenhado do Android 13+ so reconheceria um botao de
+    // repetir via ACTION_SET_REPEAT_MODE/setRepeatMode() da lib de
+    // compatibilidade. NA PRATICA, no aparelho de teste (Samsung One UI
+    // 6.1, Android 14), essa migracao teve o efeito CONTRARIO: os 5
+    // botoes (que apareciam certinho com a MediaSession framework pura)
+    // sumiram da notificacao expandida depois dela. Revertido de volta
+    // para MediaSession/PlaybackState framework (este arquivo), que e o
+    // que comprovadamente funciona aqui. NAO reintroduzir
+    // MediaSessionCompat sem antes confirmar em teste real que o
+    // problema era mesmo isso - o comportamento de MediaStyle varia
+    // bastante entre fabricante/versao e nao da pra deduzir so pela
+    // documentacao.
+    private MediaSession mMediaSession;
     private NotificationManager mNotificationManager;
 
     private Callback mCallback;
@@ -163,8 +166,8 @@ public class MusicPlaybackService extends Service
         super.onCreate();
         createNotificationChannel();
 
-        mMediaSession = new MediaSessionCompat(this, TAG);
-        mMediaSession.setCallback(new MediaSessionCompat.Callback() {
+        mMediaSession = new MediaSession(this, TAG);
+        mMediaSession.setCallback(new MediaSession.Callback() {
             @Override
             public void onPlay() {
                 resume();
@@ -188,31 +191,6 @@ public class MusicPlaybackService extends Service
             @Override
             public void onCustomAction(String action, android.os.Bundle extras) {
                 handleAction(action);
-            }
-
-            // Correcao (notificacao - modo expandido): se o proprio sistema
-            // (Samsung One UI/Android 13+) desenhar um botao nativo de
-            // repetir baseado no PlaybackStateCompat.ACTION_SET_REPEAT_MODE
-            // publicado em updatePlaybackState(), o toque nele chega aqui -
-            // aplicamos o modo pedido do mesmo jeito que toggleRepeatAll()/
-            // toggleRepeatOne() fazem.
-            @Override
-            public void onSetRepeatMode(int repeatMode) {
-                switch (repeatMode) {
-                    case PlaybackStateCompat.REPEAT_MODE_ALL:
-                    case PlaybackStateCompat.REPEAT_MODE_GROUP:
-                        mRepeatMode = RepeatMode.ALL;
-                        break;
-                    case PlaybackStateCompat.REPEAT_MODE_ONE:
-                        mRepeatMode = RepeatMode.ONE;
-                        break;
-                    default:
-                        mRepeatMode = RepeatMode.OFF;
-                        break;
-                }
-                if (mCallback != null) mCallback.onRepeatModeChanged(mRepeatMode);
-                updatePlaybackState();
-                updateNotification();
             }
         });
         mMediaSession.setActive(true);
@@ -843,55 +821,31 @@ public class MusicPlaybackService extends Service
     // estado sempre consistentes antes de toda atualizacao da notificacao.
     private void publishMediaMetadata() {
         if (mMediaSession == null) return;
-        MediaMetadataCompat.Builder builder = new MediaMetadataCompat.Builder()
-                .putString(MediaMetadataCompat.METADATA_KEY_TITLE, mCurrentTitle)
-                .putString(MediaMetadataCompat.METADATA_KEY_ARTIST, mCurrentArtist)
-                .putLong(MediaMetadataCompat.METADATA_KEY_DURATION, getDuration());
+        MediaMetadata.Builder builder = new MediaMetadata.Builder()
+                .putString(MediaMetadata.METADATA_KEY_TITLE, mCurrentTitle)
+                .putString(MediaMetadata.METADATA_KEY_ARTIST, mCurrentArtist)
+                .putLong(MediaMetadata.METADATA_KEY_DURATION, getDuration());
         if (mCurrentCover != null) {
-            builder.putBitmap(MediaMetadataCompat.METADATA_KEY_ALBUM_ART, mCurrentCover);
+            builder.putBitmap(MediaMetadata.METADATA_KEY_ALBUM_ART, mCurrentCover);
         }
         mMediaSession.setMetadata(builder.build());
     }
 
-    // Correcao (notificacao - modo expandido): alem das actions de sempre,
-    // agora tambem declara ACTION_SET_REPEAT_MODE e publica o repeat mode
-    // atual via setRepeatMode() (ambos MediaSessionCompat/PlaybackStateCompat -
-    // ver comentario no campo mMediaSession). E isso que faz o Android
-    // (a partir da versao 13, que e o caso do One UI 5/6) reconhecer e
-    // desenhar o controle de repetir na notificacao expandida de forma
-    // confiavel, alem dos botoes customizados (addAction) que ja existiam.
     private void updatePlaybackState() {
         publishMediaMetadata();
-        long actions = PlaybackStateCompat.ACTION_PLAY_PAUSE
-                | PlaybackStateCompat.ACTION_PLAY
-                | PlaybackStateCompat.ACTION_PAUSE
-                | PlaybackStateCompat.ACTION_SKIP_TO_NEXT
-                | PlaybackStateCompat.ACTION_SKIP_TO_PREVIOUS
-                | PlaybackStateCompat.ACTION_SEEK_TO
-                | PlaybackStateCompat.ACTION_SET_REPEAT_MODE;
+        long actions = PlaybackState.ACTION_PLAY_PAUSE
+                | PlaybackState.ACTION_PLAY
+                | PlaybackState.ACTION_PAUSE
+                | PlaybackState.ACTION_SKIP_TO_NEXT
+                | PlaybackState.ACTION_SKIP_TO_PREVIOUS
+                | PlaybackState.ACTION_SEEK_TO;
 
-        int state = isPlaying()
-                ? PlaybackStateCompat.STATE_PLAYING
-                : PlaybackStateCompat.STATE_PAUSED;
+        int state = isPlaying() ? PlaybackState.STATE_PLAYING : PlaybackState.STATE_PAUSED;
 
-        PlaybackStateCompat.Builder builder = new PlaybackStateCompat.Builder()
+        PlaybackState.Builder builder = new PlaybackState.Builder()
                 .setActions(actions)
                 .setState(state, getCurrentPosition(), 1.0f);
         mMediaSession.setPlaybackState(builder.build());
-
-        int repeatMode;
-        switch (mRepeatMode) {
-            case ALL:
-                repeatMode = PlaybackStateCompat.REPEAT_MODE_ALL;
-                break;
-            case ONE:
-                repeatMode = PlaybackStateCompat.REPEAT_MODE_ONE;
-                break;
-            default:
-                repeatMode = PlaybackStateCompat.REPEAT_MODE_NONE;
-                break;
-        }
-        mMediaSession.setRepeatMode(repeatMode);
     }
 
     private void createNotificationChannel() {
@@ -933,41 +887,36 @@ public class MusicPlaybackService extends Service
         // especificado no Passo 4.2 para a tela de reproducao; a notificacao
         // usa aqui o mesmo icone monocromatico nos dois estados.
 
-        NotificationCompat.Action repeatAll = new NotificationCompat.Action.Builder(
+        Notification.Action repeatAll = new Notification.Action.Builder(
                 R.drawable.ic_vidcontrol_repeat_all,
                 getString(R.string.player3d_repeat_all),
                 actionPendingIntent(ACTION_TOGGLE_REPEAT_ALL, REQUEST_CODE_REPEAT_ALL)).build();
 
-        NotificationCompat.Action previous = new NotificationCompat.Action.Builder(
+        Notification.Action previous = new Notification.Action.Builder(
                 R.drawable.ic_vidcontrol_previous,
                 getString(R.string.player3d_previous),
                 actionPendingIntent(ACTION_PREVIOUS, REQUEST_CODE_PREVIOUS)).build();
 
-        NotificationCompat.Action playPause = new NotificationCompat.Action.Builder(
+        Notification.Action playPause = new Notification.Action.Builder(
                 playing ? R.drawable.ic_vidcontrol_pause : R.drawable.ic_vidcontrol_play,
                 getString(playing ? R.string.player3d_pause : R.string.player3d_play),
                 actionPendingIntent(ACTION_PLAY_PAUSE, REQUEST_CODE_PLAY_PAUSE)).build();
 
-        NotificationCompat.Action next = new NotificationCompat.Action.Builder(
+        Notification.Action next = new Notification.Action.Builder(
                 R.drawable.ic_vidcontrol_next,
                 getString(R.string.player3d_next),
                 actionPendingIntent(ACTION_NEXT, REQUEST_CODE_NEXT)).build();
 
-        NotificationCompat.Action repeatOne = new NotificationCompat.Action.Builder(
+        Notification.Action repeatOne = new Notification.Action.Builder(
                 R.drawable.ic_vidcontrol_repeat_one,
                 getString(R.string.player3d_repeat_one),
                 actionPendingIntent(ACTION_TOGGLE_REPEAT_ONE, REQUEST_CODE_REPEAT_ONE)).build();
 
-        // androidx.media.app.NotificationCompat.MediaStyle (nao
-        // androidx.core.app.NotificationCompat, ha duas classes com o
-        // mesmo nome em pacotes diferentes) - e a que sabe conversar com
-        // MediaSessionCompat.Token e com o template de midia redesenhado.
-        androidx.media.app.NotificationCompat.MediaStyle style =
-                new androidx.media.app.NotificationCompat.MediaStyle()
-                        .setMediaSession(mMediaSession.getSessionToken())
-                        .setShowActionsInCompactView(1, 2, 3);
+        Notification.MediaStyle style = new Notification.MediaStyle()
+                .setMediaSession(mMediaSession.getSessionToken())
+                .setShowActionsInCompactView(1, 2, 3);
 
-        NotificationCompat.Builder builder = new NotificationCompat.Builder(this, CHANNEL_ID)
+        Notification.Builder builder = new Notification.Builder(this, CHANNEL_ID)
                 .setSmallIcon(R.drawable.ic_vidcontrol_play)
                 .setContentTitle(mCurrentTitle)
                 .setContentText(mCurrentArtist)

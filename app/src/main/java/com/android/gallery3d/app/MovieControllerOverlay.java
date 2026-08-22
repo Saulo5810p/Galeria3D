@@ -17,7 +17,9 @@
 package com.android.gallery3d.app;
 
 import android.content.Context;
+import android.content.res.Resources;
 import android.os.Handler;
+import android.util.TypedValue;
 import android.view.KeyEvent;
 import android.view.MotionEvent;
 import android.view.View;
@@ -48,6 +50,33 @@ import com.android.gallery3d.R;
 public class MovieControllerOverlay extends CommonControllerOverlay implements
         AnimationListener {
 
+    // Correcao (Player3D, toque sobreposto entre botoes): TODOS os botoes
+    // (o Play/Pause da classe base incluido) usavam android:background=
+    // R.drawable.bg_vidcontrol com wrapContent - esse drawable mede
+    // ~230dp de LARGURA (345x140px em hdpi, um fundo retangular largo,
+    // nao um icone quadrado), entao cada botao "inflava" para esse
+    // tamanho gigante e as areas de toque de Anterior/Play/Proxima (e de
+    // Repetir Todas/Repetir Uma) ficavam se sobrepondo por dezenas de dp -
+    // por isso o toque as vezes ia parar no botao errado (vizinho ganhava
+    // a prioridade por ter sido adicionado depois na arvore de views).
+    // Agora todo botao tem tamanho FIXO e igual (BUTTON_SIZE_DP), fundo
+    // trocado para um ripple sem tamanho proprio (selectableItemBackgroundBorderless),
+    // e ScaleType.CENTER_INSIDE (em vez de CENTER) pra nenhum icone maior
+    // que o novo tamanho fixo ficar cortado.
+    private static final int BUTTON_SIZE_DP = 48;
+
+    private static int dpToPx(Context context, int dp) {
+        Resources r = context.getResources();
+        return Math.round(dp * r.getDisplayMetrics().density);
+    }
+
+    private static int resolveBorderlessRippleRes(Context context) {
+        TypedValue outValue = new TypedValue();
+        context.getTheme().resolveAttribute(
+                android.R.attr.selectableItemBackgroundBorderless, outValue, true);
+        return outValue.resourceId;
+    }
+
     private boolean hidden;
 
     private final Handler handler;
@@ -69,10 +98,17 @@ public class MovieControllerOverlay extends CommonControllerOverlay implements
     public MovieControllerOverlay(Context context) {
         super(context);
 
-        LayoutParams wrapContent =
-                new LayoutParams(LayoutParams.WRAP_CONTENT, LayoutParams.WRAP_CONTENT);
+        int buttonSizePx = dpToPx(context, BUTTON_SIZE_DP);
+        LayoutParams fixedButtonSize = new LayoutParams(buttonSizePx, buttonSizePx);
         LayoutParams matchParent =
                 new LayoutParams(LayoutParams.MATCH_PARENT, LayoutParams.MATCH_PARENT);
+
+        // Corrige tambem o botao de Play/Pause criado na classe base
+        // (CommonControllerOverlay), que tinha o mesmo problema de fundo
+        // gigante (ver comentario acima em BUTTON_SIZE_DP).
+        mPlayPauseReplayView.setBackgroundResource(resolveBorderlessRippleRes(context));
+        mPlayPauseReplayView.setScaleType(ScaleType.CENTER_INSIDE);
+        mPlayPauseReplayView.setLayoutParams(fixedButtonSize);
 
         // Adicionada antes dos botoes para ficar atras deles no z-order
         // (primeira view adicionada = desenhada primeiro = fica por baixo).
@@ -85,23 +121,23 @@ public class MovieControllerOverlay extends CommonControllerOverlay implements
 
         mRepeatAllView = createExtraButton(context,
                 R.drawable.ic_vidcontrol_repeat_all, R.string.player3d_repeat_all);
-        addView(mRepeatAllView, wrapContent);
+        addView(mRepeatAllView, fixedButtonSize);
 
         mPreviousView = createExtraButton(context,
                 R.drawable.ic_vidcontrol_previous, R.string.player3d_previous);
-        addView(mPreviousView, wrapContent);
+        addView(mPreviousView, fixedButtonSize);
 
         mNextView = createExtraButton(context,
                 R.drawable.ic_vidcontrol_next, R.string.player3d_next);
-        addView(mNextView, wrapContent);
+        addView(mNextView, fixedButtonSize);
 
         mRepeatOneView = createExtraButton(context,
                 R.drawable.ic_vidcontrol_repeat_one, R.string.player3d_repeat_one);
-        addView(mRepeatOneView, wrapContent);
+        addView(mRepeatOneView, fixedButtonSize);
 
         mEditCoverView = createExtraButton(context,
                 R.drawable.ic_menu_edit_holo_dark, R.string.player3d_edit_cover);
-        addView(mEditCoverView, wrapContent);
+        addView(mEditCoverView, fixedButtonSize);
 
         mControlsBackdrop.setVisibility(View.INVISIBLE);
         mRepeatAllView.setVisibility(View.INVISIBLE);
@@ -128,8 +164,13 @@ public class MovieControllerOverlay extends CommonControllerOverlay implements
         ImageView view = new ImageView(context);
         view.setImageResource(iconRes);
         view.setContentDescription(context.getResources().getString(contentDescriptionRes));
-        view.setBackgroundResource(R.drawable.bg_vidcontrol);
-        view.setScaleType(ScaleType.CENTER);
+        // Correcao (toque sobreposto): ripple sem tamanho proprio, em vez
+        // do fundo largo bg_vidcontrol - ver comentario acima de
+        // BUTTON_SIZE_DP. CENTER_INSIDE em vez de CENTER pra icones
+        // maiores que o botao (ex.: os 48x48 originais vs o novo tamanho
+        // fixo) encolherem pra caber, em vez de ficarem cortados.
+        view.setBackgroundResource(resolveBorderlessRippleRes(context));
+        view.setScaleType(ScaleType.CENTER_INSIDE);
         view.setFocusable(true);
         view.setClickable(true);
         view.setOnClickListener(this);
@@ -319,7 +360,12 @@ public class MovieControllerOverlay extends CommonControllerOverlay implements
         int usableHalfWidth = Math.min(centerX - left, right - centerX);
         int maxGap = usableHalfWidth - buttonWidth / 2;
         int preferredGap = buttonWidth + buttonWidth / 3;
-        int gap = Math.max(buttonWidth / 2, Math.min(preferredGap, maxGap));
+        // Correcao: piso do gap era buttonWidth/2 - com o buttonWidth
+        // antigo (inflado pelo fundo bg_vidcontrol) isso ja garantia
+        // sobreposicao entre os botoes; agora que buttonWidth reflete o
+        // tamanho real (BUTTON_SIZE_DP), o piso vira buttonWidth (bordas
+        // encostando, zero sobreposicao possivel) por seguranca.
+        int gap = Math.max(buttonWidth, Math.min(preferredGap, maxGap));
 
         layoutCenteredAt(mPreviousView, centerX - gap, mainRowCenterY);
         layoutCenteredAt(mNextView, centerX + gap, mainRowCenterY);
@@ -332,8 +378,12 @@ public class MovieControllerOverlay extends CommonControllerOverlay implements
         // canto inferior direito em telas menores/paisagem. Movido para o
         // canto SUPERIOR direito da tela, espaco proprio, longe de
         // qualquer outro botao, sem sair das dimensoes da tela.
-        int editCoverCenterY = top + margin + mEditCoverView.getMeasuredHeight() / 2;
-        int editCoverCenterX = w - margin - mEditCoverView.getMeasuredWidth() / 2;
+        // Correcao: "mais pra cima e mais pra direita" - inset bem menor
+        // que o dos outros cantos (so o suficiente pra nao cortar/tocar a
+        // borda da tela), grudado quase na quina superior direita.
+        int editCoverMargin = Math.max(buttonWidth / 6, 1);
+        int editCoverCenterY = top + editCoverMargin + mEditCoverView.getMeasuredHeight() / 2;
+        int editCoverCenterX = w - editCoverMargin - mEditCoverView.getMeasuredWidth() / 2;
         layoutCenteredAt(mEditCoverView, editCoverCenterX, editCoverCenterY);
 
         // RepeatAll / RepeatOne: linha propria, bem mais proxima da

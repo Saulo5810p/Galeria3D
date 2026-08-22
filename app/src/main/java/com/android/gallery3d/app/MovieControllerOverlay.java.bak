@@ -35,7 +35,8 @@ import com.android.gallery3d.R;
  * - [Anterior] [Play/Pause] [Proxima]: juntos, centralizados
  *   horizontalmente, mas posicionados mais PERTO DA BASE da tela (nao
  *   mais no centro vertical exato), como qualquer tocador de musica.
- * - Canto inferior DIREITO (linha mais acima): [Editar capa], sozinho.
+ * - Canto superior DIREITO: [Editar capa], sozinho, espaco proprio, longe
+ *   dos outros botoes.
  * - Linha propria, BEM mais proxima da TimeBar (quase colada acima
  *   dela): [Repetir todas] no canto esquerdo, [Repetir uma] no canto
  *   direito.
@@ -283,14 +284,13 @@ public class MovieControllerOverlay extends CommonControllerOverlay implements
     //   mPlayPauseReplayView em w/2,h/2 por padrao; aqui recalculamos a
     //   posicao vertical dos 3 botoes principais para perto do rodape,
     //   acima da TimeBar).
-    // - [EditCover]: mantido no canto inferior direito, na mesma altura
-    //   de antes (nao mexido por este fix).
+    // - [EditCover]: movido para o canto superior direito da tela,
+    //   espaco proprio, sem disputar espaco com os outros botoes.
     // - Correcao (mover repeat mais pra baixo): [RepeatAll] (canto
     //   inferior esquerdo) e [RepeatOne] (canto inferior direito) agora
     //   ficam na sua PROPRIA linha, mais abaixo que EditCover - bem perto
     //   da TimeBar, praticamente colados acima dela, sem cobrir/sair da
-    //   tela. Como RepeatOne fica mais abaixo e mais a direita que
-    //   EditCover, e nao compartilham mais a mesma linha, nao ha
+    //   tela. Como EditCover agora fica no topo, nao ha risco de
     //   sobreposicao entre os dois.
     @Override
     protected void onLayout(boolean changed, int left, int top, int right, int bottom) {
@@ -328,12 +328,13 @@ public class MovieControllerOverlay extends CommonControllerOverlay implements
 
         int margin = buttonWidth / 2;
 
-        // EditCover: canto inferior direito, altura original (nao mexida
-        // por este fix), mais para dentro da tela.
-        int editCornerY = h - mTimeBar.getPreferredHeight() - margin
-                - mEditCoverView.getMeasuredHeight() / 2;
+        // Correcao: EditCover (lapis) ficava perto/em cima do Play no
+        // canto inferior direito em telas menores/paisagem. Movido para o
+        // canto SUPERIOR direito da tela, espaco proprio, longe de
+        // qualquer outro botao, sem sair das dimensoes da tela.
+        int editCoverCenterY = top + margin + mEditCoverView.getMeasuredHeight() / 2;
         int editCoverCenterX = w - margin - mEditCoverView.getMeasuredWidth() / 2;
-        layoutCenteredAt(mEditCoverView, editCoverCenterX, editCornerY);
+        layoutCenteredAt(mEditCoverView, editCoverCenterX, editCoverCenterY);
 
         // RepeatAll / RepeatOne: linha propria, bem mais proxima da
         // TimeBar (bem menos folga que a linha do EditCover acima),

@@ -34,6 +34,7 @@ android {
 
 dependencies {
     implementation("androidx.core:core:1.13.1")
+    implementation("androidx.media:media:1.7.0")
     implementation("androidx.fragment:fragment:1.8.2")
     implementation("androidx.legacy:legacy-support-v13:1.0.0")
     implementation("androidx.legacy:legacy-support-core-ui:1.0.0")

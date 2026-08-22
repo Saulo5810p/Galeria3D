@@ -81,15 +81,37 @@ public final class ImageLoader {
         return ret;
     }
 
+    // Correcao (Player3D, crash no editor de capa): esta funcao foi feita
+    // originalmente so para Uris do MediaStore (content://media/...), que
+    // sempre tem a coluna _data. O editor agora tambem recebe Uris de
+    // FileProvider (capa da faixa salva em arquivo temporario, ver
+    // MoviePlayer.onEditCover()), cujo provider NAO suporta a coluna
+    // _data - a query cai numa RuntimeException/IllegalArgumentException
+    // ("column '_data' does not exist") que antes derrubava o app inteiro
+    // (FATAL EXCEPTION: AsyncTask, doInBackground). Agora so devolve null
+    // nesses casos; quem chama (getExif, mais abaixo) ja trata path==null
+    // sem problema, e o carregamento do bitmap em si (loadOrientedConstrainedBitmap)
+    // usa a Uri diretamente via ContentResolver, nao depende deste path.
     public static String getLocalPathFromUri(Context context, Uri uri) {
-        Cursor cursor = context.getContentResolver().query(uri,
-                new String[]{MediaStore.Images.Media.DATA}, null, null, null);
-        if (cursor == null) {
+        Cursor cursor = null;
+        try {
+            cursor = context.getContentResolver().query(uri,
+                    new String[]{MediaStore.Images.Media.DATA}, null, null, null);
+            if (cursor == null) {
+                return null;
+            }
+            int index = cursor.getColumnIndexOrThrow(MediaStore.Images.Media.DATA);
+            cursor.moveToFirst();
+            return cursor.getString(index);
+        } catch (IllegalArgumentException e) {
+            // Provider (ex.: FileProvider) nao tem a coluna _data - Uri
+            // valida, so sem caminho de arquivo local resolvivel.
             return null;
+        } finally {
+            if (cursor != null) {
+                cursor.close();
+            }
         }
-        int index = cursor.getColumnIndexOrThrow(MediaStore.Images.Media.DATA);
-        cursor.moveToFirst();
-        return cursor.getString(index);
     }
 
     /**
