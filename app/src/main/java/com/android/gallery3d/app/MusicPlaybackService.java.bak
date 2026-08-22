@@ -686,9 +686,6 @@ public class MusicPlaybackService extends Service
     public void toggleRepeatAll() {
         mRepeatMode = (mRepeatMode == RepeatMode.ALL) ? RepeatMode.OFF : RepeatMode.ALL;
         if (mCallback != null) mCallback.onRepeatModeChanged(mRepeatMode);
-        // Correcao (notificacao - modo expandido): atualiza tambem o repeat
-        // mode nativo da MediaSession (via updatePlaybackState()), nao so a
-        // notificacao em si - ver comentario em updatePlaybackState().
         updatePlaybackState();
         updateNotification();
     }
@@ -827,8 +824,7 @@ public class MusicPlaybackService extends Service
                 | PlaybackState.ACTION_PAUSE
                 | PlaybackState.ACTION_SKIP_TO_NEXT
                 | PlaybackState.ACTION_SKIP_TO_PREVIOUS
-                | PlaybackState.ACTION_SEEK_TO
-                | PlaybackState.ACTION_SET_REPEAT_MODE;
+                | PlaybackState.ACTION_SEEK_TO;
 
         int state = isPlaying() ? PlaybackState.STATE_PLAYING : PlaybackState.STATE_PAUSED;
 
@@ -836,29 +832,6 @@ public class MusicPlaybackService extends Service
                 .setActions(actions)
                 .setState(state, getCurrentPosition(), 1.0f);
         mMediaSession.setPlaybackState(builder.build());
-
-        // Correcao (notificacao - modo expandido): alem da ACTION_SET_REPEAT_MODE
-        // acima, publica o repeat mode nativo da sessao. O sistema (a partir do
-        // Android 10/Q) usa isso pra decidir o que desenhar no template de midia
-        // da notificacao no modo expandido; sem isso, dependendo da versao do
-        // Android/fabricante, os botoes de repeat customizados (addAction, mais
-        // abaixo em buildNotification()) podem ficar de fora do expandido mesmo
-        // com setShowActionsInCompactView() e addAction() corretos.
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
-            int repeatMode;
-            switch (mRepeatMode) {
-                case ALL:
-                    repeatMode = PlaybackState.REPEAT_MODE_ALL;
-                    break;
-                case ONE:
-                    repeatMode = PlaybackState.REPEAT_MODE_ONE;
-                    break;
-                default:
-                    repeatMode = PlaybackState.REPEAT_MODE_NONE;
-                    break;
-            }
-            mMediaSession.setRepeatMode(repeatMode);
-        }
     }
 
     private void createNotificationChannel() {
