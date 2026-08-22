@@ -32,7 +32,6 @@ import com.android.gallery3d.R;
 import com.android.gallery3d.common.ApiHelper;
 import com.android.gallery3d.gadget.WidgetDatabaseHelper.Entry;
 import com.android.gallery3d.onetimeinitializer.GalleryWidgetMigrator;
-import com.android.gallery3d.app.MusicPlaybackService;
 
 public class PhotoAppWidgetProvider extends AppWidgetProvider {
 
@@ -94,19 +93,9 @@ public class PhotoAppWidgetProvider extends AppWidgetProvider {
 
         views.setEmptyView(R.id.appwidget_stack_view, R.id.appwidget_empty_view);
 
-        // Fix (Player3D, Passo 8): deslizar/tocar um card agora manda a
-        // faixa correspondente comecar a tocar de verdade (ACTION_PLAY_URI
-        // no MusicPlaybackService), em vez de abrir uma Activity de foto.
-        // Os extras variam por item, entao cada item preenche o restante do
-        // Intent via setOnClickFillInIntent() (ver WidgetService/getViewAt).
-        Intent clickIntent = new Intent(context, MusicPlaybackService.class);
-        clickIntent.setAction(MusicPlaybackService.ACTION_PLAY_URI);
-        int pendingFlags = PendingIntent.FLAG_UPDATE_CURRENT;
-        if (ApiHelper.HAS_ANDROID_M) {
-            pendingFlags |= PendingIntent.FLAG_MUTABLE;
-        }
-        PendingIntent pendingIntent = PendingIntent.getService(
-                context, 0, clickIntent, pendingFlags);
+        Intent clickIntent = new Intent(context, WidgetClickHandler.class);
+        PendingIntent pendingIntent = PendingIntent.getActivity(
+                context, 0, clickIntent, PendingIntent.FLAG_UPDATE_CURRENT);
         views.setPendingIntentTemplate(R.id.appwidget_stack_view, pendingIntent);
 
         return views;

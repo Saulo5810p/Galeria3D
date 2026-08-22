@@ -29,7 +29,6 @@ import android.widget.RemoteViews;
 import com.android.gallery3d.R;
 import com.android.gallery3d.app.AlbumPicker;
 import com.android.gallery3d.app.DialogPicker;
-import com.android.gallery3d.app.PlaylistPicker;
 import com.android.gallery3d.app.GalleryApp;
 import com.android.gallery3d.common.ApiHelper;
 import com.android.gallery3d.data.DataManager;
@@ -48,11 +47,6 @@ public class WidgetConfigure extends Activity {
 
     private static final int REQUEST_WIDGET_TYPE = 1;
     private static final int REQUEST_CHOOSE_ALBUM = 2;
-    // Fix (Player3D, Passo 8b): novo request code para o picker de
-    // playlist, tratado igual ao de album (mesmo callback
-    // setChoosenAlbum(), ja que uma playlist tambem e uma MediaSet
-    // comum na hora de gravar no banco do widget).
-    private static final int REQUEST_CHOOSE_PLAYLIST = 5;
     private static final int REQUEST_CROP_IMAGE = 3;
     private static final int REQUEST_GET_PHOTO = 4;
 
@@ -117,8 +111,7 @@ public class WidgetConfigure extends Activity {
 
         if (requestCode == REQUEST_WIDGET_TYPE) {
             setWidgetType(data);
-        } else if (requestCode == REQUEST_CHOOSE_ALBUM
-                || requestCode == REQUEST_CHOOSE_PLAYLIST) {
+        } else if (requestCode == REQUEST_CHOOSE_ALBUM) {
             setChoosenAlbum(data);
         } else if (requestCode == REQUEST_GET_PHOTO) {
             setChoosenPhoto(data);
@@ -206,11 +199,11 @@ public class WidgetConfigure extends Activity {
                 helper.close();
             }
         } else {
-            // Fix (Player3D, Passo 8b): terceira opcao do popup agora e
-            // "Playlists" (antes era "escolher 1 imagem", fluxo de
-            // crop de foto que nao faz mais sentido no app de musica).
-            Intent intent = new Intent(this, PlaylistPicker.class);
-            startActivityForResult(intent, REQUEST_CHOOSE_PLAYLIST);
+            // Explicitly send the intent to the DialogPhotoPicker
+            Intent request = new Intent(this, DialogPicker.class)
+                    .setAction(Intent.ACTION_GET_CONTENT)
+                    .setType("image/*");
+            startActivityForResult(request, REQUEST_GET_PHOTO);
         }
     }
 }

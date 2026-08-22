@@ -103,6 +103,7 @@
     <string name="select_item">Select item</string>
     <!-- Title prompted for user to choose an album [CHAR LIMIT=20] -->
     <string name="select_album">Select album</string>
+    <string name="select_playlist">Select playlist</string>
     <!-- Title prompted for user to choose a group [CHAR LIMIT=20] -->
     <string name="select_group">Select group</string>
 
@@ -469,14 +470,14 @@
     <string name="click_import">Touch here to import</string>
 
     <!-- The label on the radio button for the widget type that shows the images randomly. [CHAR LIMIT=30]-->
-    <string name="widget_type_album">Choose an album</string>
+    <string name="widget_type_album">Álbuns</string>
     <!-- The label on the radio button for the widget type that shows the images in an album. [CHAR LIMIT=30]-->
-    <string name="widget_type_shuffle">Shuffle all images</string>
+    <string name="widget_type_shuffle">Músicas</string>
     <!-- The label on the radio button for the widget type that shows only one image. [CHAR LIMIT=30]-->
-    <string name="widget_type_photo">Choose an image</string>
+    <string name="widget_type_photo">Playlists</string>
 
     <!-- The title of the dialog for choosing the type of widget. [CHAR LIMIT=20] -->
-    <string name="widget_type">Choose images</string>
+    <string name="widget_type">Escolher músicas</string>
 
     <!-- Title of the Android Dreams slideshow screensaver. [CHAR LIMIT=20] -->
     <string name="slideshow_dream_name">Slideshow</string>

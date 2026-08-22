@@ -78,16 +78,6 @@ public class MusicPlaybackService extends Service
             "com.android.gallery3d.app.action.TOGGLE_REPEAT_ONE";
     public static final String ACTION_STOP =
             "com.android.gallery3d.app.action.STOP";
-    // Fix (Player3D, Passo 8 - widget de home screen): permite comecar a
-    // tocar uma faixa diretamente por Intent (PendingIntent do widget),
-    // sem precisar de bindService() nem abrir a Activity.
-    public static final String ACTION_PLAY_URI =
-            "com.android.gallery3d.app.action.PLAY_URI";
-    public static final String EXTRA_TRACK_URI = "extra_track_uri";
-    public static final String EXTRA_TRACK_TITLE = "extra_track_title";
-    public static final String EXTRA_TRACK_ARTIST = "extra_track_artist";
-    public static final String EXTRA_TRACK_ALBUM_ID = "extra_track_album_id";
-    public static final String EXTRA_TRACK_BUCKET_ID = "extra_track_bucket_id";
 
     // Volta ao inicio da faixa em vez de ir pra anterior de fato quando o
     // usuario ja passou desse tanto de tempo tocando (mesmo valor usado no
@@ -209,34 +199,9 @@ public class MusicPlaybackService extends Service
     @Override
     public int onStartCommand(Intent intent, int flags, int startId) {
         if (intent != null && intent.getAction() != null) {
-            if (ACTION_PLAY_URI.equals(intent.getAction())) {
-                handlePlayUriIntent(intent);
-            } else {
-                handleAction(intent.getAction());
-            }
+            handleAction(intent.getAction());
         }
         return START_NOT_STICKY;
-    }
-
-    // Fix (Player3D, Passo 8 - widget de home screen): recebido via
-    // PendingIntent.getService() disparado ao deslizar/tocar um card no
-    // widget. Comeca a tocar a faixa direto (sem bindService/Activity) e
-    // carrega a fila normalmente, igual a qualquer outra faixa tocada
-    // dentro do app - depois disso, next/previous/notificacao funcionam
-    // normalmente.
-    private void handlePlayUriIntent(Intent intent) {
-        Uri uri = intent.getParcelableExtra(EXTRA_TRACK_URI);
-        if (uri == null) return;
-        String title = intent.getStringExtra(EXTRA_TRACK_TITLE);
-        String artist = intent.getStringExtra(EXTRA_TRACK_ARTIST);
-        long albumId = intent.getLongExtra(EXTRA_TRACK_ALBUM_ID, -1);
-        long bucketId = intent.getLongExtra(EXTRA_TRACK_BUCKET_ID, -1);
-        Bitmap cover = decodeEmbeddedCover(getApplicationContext(), uri);
-        if (cover == null && albumId >= 0) {
-            cover = decodeAlbumArtFallback(getApplicationContext().getContentResolver(), albumId);
-        }
-        playTrack(uri, title, artist, cover);
-        loadQueueForTrack(albumId, bucketId, uri);
     }
 
     @Override
@@ -265,8 +230,6 @@ public class MusicPlaybackService extends Service
             case ACTION_STOP:
                 stopPlaybackAndService();
                 break;
-            case ACTION_PLAY_URI:
-                break; // tratado em onStartCommand() (precisa do Intent completo, nao so da action)
             default:
                 break;
         }
