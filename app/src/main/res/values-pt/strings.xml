@@ -66,6 +66,9 @@
     <string name="create_album_invalid_name">"Digite um nome válido"</string>
     <string name="create_album_failure">"Não foi possível criar o álbum"</string>
     <string name="create_album_success">"Álbum criado — ele vai aparecer assim que você mover uma faixa para dentro dele"</string>
+    <!-- Passo 7 v2 (Player3D): popup pedindo Acesso a todos os arquivos, necessario para o file manager proprio -->
+    <string name="manage_storage_permission_title">"Acesso a arquivos necessário"</string>
+    <string name="manage_storage_permission_message">"Para mover faixas entre pastas, o Player3D precisa da permissão \"Acesso a todos os arquivos\". Você será levado até a tela de configurações do sistema para conceder."</string>
   <plurals name="delete_selection">
     <item quantity="one" msgid="6453379735401083732">"Excluir o item selecionado?"</item>
     <item quantity="other" msgid="5874316486520635333">"Excluir os itens selecionados?"</item>

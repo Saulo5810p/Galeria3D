@@ -14,15 +14,6 @@
      limitations under the License.
 -->
 <menu xmlns:android="http://schemas.android.com/apk/res/android">
-    <!-- Correcao bug busca: icone de busca colapsavel faltava aqui na tela
-         principal (Musicas/Playlists/Albuns/Artistas) - so existia em
-         menu/album.xml (dentro de um album), por isso a busca parava de
-         filtrar/aparecer na grade principal. -->
-    <item android:id="@+id/action_search"
-            android:icon="@android:drawable/ic_menu_search"
-            android:title="@string/menu_search"
-            android:showAsAction="ifRoom|collapseActionView"
-            android:actionViewClass="android.widget.SearchView" />
     <item android:id="@+id/action_camera"
             android:icon="@drawable/ic_menu_camera_holo_light"
             android:title="@string/switch_to_camera"
@@ -38,11 +29,6 @@
             android:showAsAction="never" />
     <item android:id="@+id/action_settings"
             android:title="@string/settings"
-            android:showAsAction="never" />
-    <!-- Passo 7 (Player3D): "Criar album" no menu overflow, logo abaixo
-         de Configuracoes. -->
-    <item android:id="@+id/action_create_album"
-            android:title="@string/create_album"
             android:showAsAction="never" />
     <item android:id="@+id/action_general_help"
             android:title="@string/help"

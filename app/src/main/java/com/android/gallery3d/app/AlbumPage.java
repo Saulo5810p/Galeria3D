@@ -24,6 +24,7 @@ import android.content.Intent;
 import android.graphics.Rect;
 import android.net.Uri;
 import android.os.Bundle;
+import android.os.Build;
 import android.os.Handler;
 import android.os.Message;
 import android.provider.MediaStore;
@@ -31,14 +32,12 @@ import android.view.HapticFeedbackConstants;
 import android.view.Menu;
 import android.view.MenuInflater;
 import android.view.MenuItem;
-import android.widget.SearchView;
 import android.widget.Toast;
 
 import com.android.gallery3d.R;
 import com.android.gallery3d.common.Utils;
 import com.android.gallery3d.data.ClusterAlbum;
 import com.android.gallery3d.data.DataManager;
-import com.android.gallery3d.data.LocalAlbum;
 import com.android.gallery3d.data.LocalAudio;
 import com.android.gallery3d.data.MediaDetails;
 import com.android.gallery3d.data.MediaItem;
@@ -585,45 +584,9 @@ public class AlbumPage extends ActivityState implements GalleryActionBar.Cluster
                     MediaSetUtils.isCameraSource(mMediaSetPath)
                     && GalleryUtils.isCameraAvailable(mActivity));
 
-            setupSearchMenuItem(menu);
         }
         actionBar.setSubtitle(null);
         return true;
-    }
-
-    // Correcao bug busca: mesma logica do AlbumSetPage - liga o icone
-    // colapsavel de busca (R.id.action_search, menu/album.xml) ao
-    // onSearchQueryChanged() ja existente, que nunca era chamado.
-    private void setupSearchMenuItem(Menu menu) {
-        MenuItem searchItem = menu.findItem(R.id.action_search);
-        if (searchItem == null) return;
-        SearchView searchView = (SearchView) searchItem.getActionView();
-        if (searchView == null) return;
-        searchView.setOnQueryTextListener(new SearchView.OnQueryTextListener() {
-            @Override
-            public boolean onQueryTextSubmit(String query) {
-                onSearchQueryChanged(query);
-                return true;
-            }
-
-            @Override
-            public boolean onQueryTextChange(String newText) {
-                onSearchQueryChanged(newText);
-                return true;
-            }
-        });
-        searchItem.setOnActionExpandListener(new MenuItem.OnActionExpandListener() {
-            @Override
-            public boolean onMenuItemActionExpand(MenuItem item) {
-                return true;
-            }
-
-            @Override
-            public boolean onMenuItemActionCollapse(MenuItem item) {
-                onSearchQueryChanged("");
-                return true;
-            }
-        });
     }
 
     private void prepareAnimationBackToFilmstrip(int slotIndex) {
@@ -717,14 +680,14 @@ public class AlbumPage extends ActivityState implements GalleryActionBar.Cluster
                 break;
             }
             case REQUEST_MOVE_DESTINATION: {
-                // Passo 7 (Player3D): volta da navegacao de "escolher album
-                // destino" (AlbumSetPage em KEY_MOVE_TARGET_MODE). data traz
-                // o Path do album escolhido, ou e nulo se o usuario cancelou
-                // (apertou voltar sem tocar em nenhum album).
+                // Passo 7 v2 (Player3D): volta do file manager proprio
+                // (FilePickerPage). data traz o caminho absoluto da pasta
+                // escolhida, ou e nulo se o usuario cancelou (voltou sem
+                // confirmar "OK").
                 if (data == null) return;
-                String albumPath = data.getStringExtra(AlbumSetPage.KEY_MOVE_TARGET_RESULT_PATH);
-                if (albumPath != null) {
-                    confirmAndMoveSelectionTo(albumPath);
+                String destPath = data.getStringExtra(FilePickerPage.KEY_RESULT_PATH);
+                if (destPath != null) {
+                    confirmAndMoveSelectionTo(destPath);
                 }
                 break;
             }
@@ -746,59 +709,84 @@ public class AlbumPage extends ActivityState implements GalleryActionBar.Cluster
         }
     }
 
-    // Passo 7 (Player3D): dispara o fluxo de "Mover para album" a partir da
-    // selecao atual nesta pagina (mMediaSet aqui e um ClusterAlbum -- a
+    // Passo 7 v2 (Player3D): dispara o fluxo de "Mover para album" a partir
+    // da selecao atual nesta pagina (mMediaSet aqui e um ClusterAlbum -- a
     // pasta/agrupamento de faixas aberto no momento, que pode ser de
-    // qualquer filtro do spinner, nao so Albuns). Guarda os Paths
-    // selecionados e navega ate a grade de Albuns em modo "escolher
-    // destino" (forcado, independente do filtro em que o usuario estava).
+    // qualquer filtro do spinner). Guarda os Paths selecionados e abre o
+    // file manager proprio (FilePickerPage) para o usuario escolher/criar
+    // livremente a pasta destino em qualquer lugar do sdcard. Antes disso,
+    // garante a permissao de Acesso a todos os arquivos, sem a qual o file
+    // manager nao consegue navegar/criar pastas fora do escopo do app.
     private void startMoveToAlbumFlow() {
         ArrayList<Path> selected = mSelectionManager.getSelected(false);
         if (selected.isEmpty()) return;
 
         mPendingMoveSelection = selected;
 
+        if (!ensureManageStoragePermission()) {
+            // O popup de permissao ja foi mostrado; quando o usuario
+            // voltar da tela de sistema, o fluxo nao retoma sozinho --
+            // ele precisa tocar em "Mover para album" de novo depois de
+            // conceder. Mantemos simples e prevements por ora.
+            return;
+        }
+
         Bundle data = new Bundle();
-        String mediaPath = mActivity.getDataManager().getTopSetPath(
-                DataManager.INCLUDE_ALL);
-        data.putString(AlbumSetPage.KEY_MEDIA_PATH, mediaPath);
-        data.putInt(AlbumSetPage.KEY_SELECTED_CLUSTER_TYPE,
-                FilterUtils.CLUSTER_BY_ALBUM);
-        data.putBoolean(AlbumSetPage.KEY_MOVE_TARGET_MODE, true);
         mActivity.getStateManager().startStateForResult(
-                AlbumSetPage.class, REQUEST_MOVE_DESTINATION, data);
+                FilePickerPage.class, REQUEST_MOVE_DESTINATION, data);
     }
 
-    // Passo 7 (Player3D): usuario ja escolheu o album destino (albumPath).
-    // Mostra a confirmacao e, se aceito, executa a movimentacao fisica de
-    // cada faixa selecionada, uma por uma, via MoveToAlbumHelper.
-    private void confirmAndMoveSelectionTo(final String albumPath) {
+    // Passo 7 v2 (Player3D): confere se o app tem a permissao "Acesso a
+    // todos os arquivos" (MANAGE_EXTERNAL_STORAGE), necessaria em SDK 30+
+    // para o file manager proprio poder navegar/criar pastas/mover
+    // arquivos em qualquer lugar do sdcard, fora do escopo do proprio app.
+    // Se faltar, mostra um popup explicando e leva o usuario direto para
+    // a tela nativa do Android que concede essa permissao. Retorna true
+    // se a permissao ja esta concedida (ou o SDK e anterior a 30, onde
+    // essa permissao nem existe).
+    private boolean ensureManageStoragePermission() {
+        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.R) return true;
+        if (android.os.Environment.isExternalStorageManager()) return true;
+
+        new AlertDialog.Builder(mActivity)
+                .setTitle(R.string.manage_storage_permission_title)
+                .setMessage(R.string.manage_storage_permission_message)
+                .setPositiveButton(R.string.confirm, new DialogInterface.OnClickListener() {
+                    @Override
+                    public void onClick(DialogInterface dialog, int which) {
+                        Intent intent = new Intent(
+                                android.provider.Settings
+                                        .ACTION_MANAGE_APP_ALL_FILES_ACCESS_PERMISSION);
+                        intent.setData(Uri.fromParts(
+                                "package", mActivity.getPackageName(), null));
+                        mActivity.startActivity(intent);
+                    }
+                })
+                .setNegativeButton(R.string.cancel, null)
+                .show();
+        return false;
+    }
+
+    // Passo 7 v2 (Player3D): usuario ja escolheu a pasta destino no file
+    // manager proprio (destPath, caminho absoluto). Mostra a confirmacao
+    // e, se aceito, executa a movimentacao fisica de cada faixa
+    // selecionada, uma por uma, via MoveToAlbumHelper.
+    private void confirmAndMoveSelectionTo(final String destPath) {
         final ArrayList<Path> selection = mPendingMoveSelection;
         mPendingMoveSelection = null;
         if (selection == null || selection.isEmpty()) return;
 
-        final MediaSet destAlbum = (MediaSet) mActivity.getDataManager()
-                .getMediaObject(albumPath);
-        if (!(destAlbum instanceof LocalAlbum)) {
-            // So deveria acontecer se o usuario conseguiu chegar aqui com
-            // um album que nao e uma pasta fisica real -- nao deveria ser
-            // possivel dado que a navegacao foi forcada para o filtro
-            // Albuns, mas protege contra dados inconsistentes.
-            Toast.makeText(mActivity, R.string.move_selection_failure,
-                    Toast.LENGTH_SHORT).show();
-            return;
-        }
-        final File destDir = ((LocalAlbum) destAlbum).getDirectoryFile();
-        if (destDir == null) {
+        final File destDir = new File(destPath);
+        if (!destDir.isDirectory()) {
             Toast.makeText(mActivity, R.string.move_selection_failure,
                     Toast.LENGTH_SHORT).show();
             return;
         }
 
         final int count = selection.size();
-        String albumName = destAlbum.getName();
+        String destName = destDir.getName().isEmpty() ? "/" : destDir.getName();
         String message = mActivity.getResources().getQuantityString(
-                R.plurals.move_selection_confirm, count, albumName, count);
+                R.plurals.move_selection_confirm, count, destName, count);
 
         new AlertDialog.Builder(mActivity)
                 .setMessage(message)

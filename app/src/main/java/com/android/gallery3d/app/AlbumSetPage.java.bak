@@ -34,6 +34,7 @@ import android.view.View.OnClickListener;
 import android.widget.Button;
 import android.widget.EditText;
 import android.widget.RelativeLayout;
+import android.widget.SearchView;
 import android.widget.Toast;
 
 import com.android.gallery3d.R;
@@ -592,8 +593,46 @@ public class AlbumSetPage extends ActivityState implements
                     mActionBar.disableClusterMenu(true);
                 }
             }
+
+            setupSearchMenuItem(menu);
         }
         return true;
+    }
+
+    // Correcao bug busca: liga o icone colapsavel de busca (R.id.action_search,
+    // menu/albumset.xml) ao onSearchQueryChanged() ja existente. Esse metodo
+    // era so mencionado em comentario, nunca foi implementado de fato, entao
+    // a busca na tela principal nunca chegava a chamar setSearchFilter().
+    private void setupSearchMenuItem(Menu menu) {
+        MenuItem searchItem = menu.findItem(R.id.action_search);
+        if (searchItem == null) return;
+        SearchView searchView = (SearchView) searchItem.getActionView();
+        if (searchView == null) return;
+        searchView.setOnQueryTextListener(new SearchView.OnQueryTextListener() {
+            @Override
+            public boolean onQueryTextSubmit(String query) {
+                onSearchQueryChanged(query);
+                return true;
+            }
+
+            @Override
+            public boolean onQueryTextChange(String newText) {
+                onSearchQueryChanged(newText);
+                return true;
+            }
+        });
+        searchItem.setOnActionExpandListener(new MenuItem.OnActionExpandListener() {
+            @Override
+            public boolean onMenuItemActionExpand(MenuItem item) {
+                return true;
+            }
+
+            @Override
+            public boolean onMenuItemActionCollapse(MenuItem item) {
+                onSearchQueryChanged("");
+                return true;
+            }
+        });
     }
 
     @Override

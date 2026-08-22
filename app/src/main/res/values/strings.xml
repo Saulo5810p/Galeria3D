@@ -134,6 +134,9 @@
     <string name="create_album_invalid_name">Enter a valid name</string>
     <string name="create_album_failure">Could not create the album</string>
     <string name="create_album_success">Album created — it will appear once you move a track into it</string>
+    <!-- Passo 7 v2 (Player3D): popup pedindo Acesso a todos os arquivos, necessario para o file manager proprio -->
+    <string name="manage_storage_permission_title">Files access needed</string>
+    <string name="manage_storage_permission_message">To move tracks between folders, Player3D needs \"All files access\" permission. You\'ll be taken to the system settings screen to grant it.</string>
     <!-- String Delete the selected media item(s) [CHAR LIMIT=50] -->
     <plurals name="delete_selection">
         <item quantity="one">Delete selected item?</item>

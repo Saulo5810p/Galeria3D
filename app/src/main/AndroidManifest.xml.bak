@@ -3,7 +3,6 @@
 <manifest android:versionCode="40030"
         android:versionName="1.1.40030"
         xmlns:android="http://schemas.android.com/apk/res/android"
-        xmlns:tools="http://schemas.android.com/tools"
        >
 
     <original-package android:name="com.android.gallery3d" />
@@ -33,13 +32,6 @@
     <uses-permission android:name="android.permission.READ_MEDIA_VIDEO" />
     <uses-permission android:name="android.permission.READ_MEDIA_AUDIO" />
     <uses-permission android:name="android.permission.WRITE_EXTERNAL_STORAGE" android:maxSdkVersion="29" />
-    <!-- Passo 7 (Player3D): file manager proprio para "Mover para album",
-         navegando o sdcard inteiro fora do MediaStore. Precisa desta
-         permissao especial (nao e concedida como as demais; o usuario
-         precisa liberar manualmente na tela do sistema, ver
-         FilePickerPage.ensureManageStoragePermission()). -->
-    <uses-permission android:name="android.permission.MANAGE_EXTERNAL_STORAGE"
-            tools:ignore="ScopedStorage" />
     <uses-permission android:name="android.permission.WRITE_SETTINGS" />
     <uses-permission android:name="android.permission.WRITE_SYNC_SETTINGS" />
     <uses-permission android:name="com.android.gallery3d.permission.GALLERY_PROVIDER" />

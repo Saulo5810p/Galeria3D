@@ -1,0 +1,16 @@
+<?xml version="1.0" encoding="utf-8"?>
+<menu xmlns:android="http://schemas.android.com/apk/res/android">
+    <!-- Passo 7 v2 (Player3D): menu do file manager proprio de "Mover
+         para album". action_new_folder cria uma pasta dentro do
+         diretorio atual (dialogo pedindo nome). action_confirm_move
+         confirma o diretorio atual como destino e move as faixas
+         selecionadas para la. -->
+    <item android:id="@+id/action_new_folder"
+            android:icon="@android:drawable/ic_menu_add"
+            android:title="@string/create_album"
+            android:showAsAction="ifRoom" />
+    <item android:id="@+id/action_confirm_move"
+            android:icon="@android:drawable/ic_menu_save"
+            android:title="@string/confirm"
+            android:showAsAction="ifRoom|withText" />
+</menu>
